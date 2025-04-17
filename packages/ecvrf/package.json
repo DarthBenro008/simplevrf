@@ -1,0 +1,47 @@
+{
+  "name": "@simplevrf/ecvrf",
+  "version": "0.1.0",
+  "description": "Elliptic Curve Verifiable Random Function (ECVRF) implementation using secp256k1",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "generate-vectors": "tsx test/generate-test-vectors.ts",
+    "test:vectors": "npm run generate-vectors && vitest run test/ecvrf-vectors.test.ts",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "vrf",
+    "ecvrf",
+    "cryptography",
+    "secp256k1",
+    "elliptic curve",
+    "verifiable random function"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.10.6",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.7.2",
+    "@noble/secp256k1": "^2.2.3"
+  }
+}
