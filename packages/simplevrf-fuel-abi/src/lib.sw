@@ -9,6 +9,7 @@ pub struct Request {
 }
 
 abi SimpleVrfCallback {
+    #[storage(read, write)]
     fn simple_callback(seed: b256, proof: b256);
 }
 
