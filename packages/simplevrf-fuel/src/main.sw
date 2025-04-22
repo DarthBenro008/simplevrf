@@ -10,6 +10,7 @@ use std::identity::Identity;
 use std::constants::{ZERO_B256};
 use std::block::height;
 use std::logging::log;
+use std::call_frames::msg_asset_id;
 use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback, Request};
 
 const ADMIN_ADDRESS: Address = Address::from(0x2a8d96911becbe05b2a9f5253c91865f0f4b365ed0e2abab17a35e9fc9c4ac76);
@@ -124,6 +125,10 @@ impl SimpleVrf for Contract {
     #[payable]
     #[storage(read, write)]
     fn request(seed: b256) -> u64 {
+        let asset_id = msg_asset_id();
+        let amount = msg_amount();
+        let fee = storage.fee_map.get(asset_id).try_read().unwrap();
+        require(amount >= fee, Error::InsufficientFee);
         let sender = msg_sender().unwrap();
         let count = storage.request_count.try_read().unwrap();
         let request = Request {

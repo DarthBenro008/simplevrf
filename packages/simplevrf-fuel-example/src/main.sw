@@ -8,6 +8,7 @@ abi SampleVrfContract {
     #[storage(read, write)]
     fn simplevrf_callback(seed: b256, proof: b256);
 
+    #[payable]
     #[storage(read, write)]
     fn request(seed: b256) -> u64;
 
@@ -41,12 +42,17 @@ impl SampleVrfContract for Contract {
         storage.latest_proof.write(proof);
     }
 
+    #[payable]
     #[storage(read, write)]
     fn request(seed: b256) -> u64 {
         let vrf_id = storage.vrf_id.try_read().unwrap();
         storage.seed.write(seed);
         let simple_vrf = abi(SimpleVrf, vrf_id);
-        let request_id = simple_vrf.request(seed);
+        let fee = simple_vrf.get_fee(AssetId::base());
+        let request_id = simple_vrf.request{
+            asset_id: AssetId::base().bits(),
+            coins: fee, 
+        }(seed);
         request_id
     }
 
