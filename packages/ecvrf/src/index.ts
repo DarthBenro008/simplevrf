@@ -1,213 +1,294 @@
-import { utils as nobleUtils, ProjectivePoint, CURVE } from '@noble/secp256k1';
+import { ProjectivePoint, CURVE, utils as nobleUtils } from '@noble/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
-import { utf8ToBytes, concatBytes, hexToBytes, bytesToHex } from './utils';
+import { concatBytes, randomBytes } from '@noble/hashes/utils'; // Use noble utils
 
-// Constants
-const G = ProjectivePoint.BASE;
-const DOMAIN = utf8ToBytes('ECVRF-secp256k1-SHA256-TAI');
-const SUITE_STRING = Uint8Array.from([0x01]);  // 0x01 = suite string for secp256k1-SHA256
+// Constants from RFC 9381 for suite ECVRF-SECP256k1-SHA256-TAI
+const SUITE_ID = 0x01;
+const COFACTOR = 1;
+//const FIELD_MODULUS = CURVE.P;
+const CURVE_ORDER = CURVE.n;
+const ZERO = BigInt(0);
+const ONE = BigInt(1);
+const TWO = BigInt(2);
 
-/**
- * Create a tagged hash (BIP-340 style)
- * @param tag - The tag string
- * @param messages - The messages to hash
- * @returns A SHA256 hash of the tagged message
- */
-function taggedHash(tag: string, ...messages: Uint8Array[]): Uint8Array {
-  const tagBytes = utf8ToBytes(tag);
-  const tagHash = sha256(tagBytes);
-  const concatenated = concatBytes(tagHash, tagHash, ...messages);
-  return sha256(concatenated);
-}
-
-/**
- * Convert bytes to a BigInt number
- * @param bytes - The byte array to convert
- * @returns A BigInt representation of the bytes
- */
-function bytesToNumber(bytes: Uint8Array): bigint {
-  return BigInt('0x' + bytesToHex(bytes));
-}
-
-/**
- * Hash an input to a valid curve point
- * More robust implementation of hash-to-curve
- * @param alpha - The input to hash
- * @returns A valid curve point
- */
-async function hashToCurve(alpha: Uint8Array): Promise<ProjectivePoint> {
-  // Combine domain separation tag with the input
-  const combinedInput = concatBytes(SUITE_STRING, DOMAIN, alpha);
-  
-  // Iteratively try to find a valid point
-  for (let counter = 0; counter < 256; counter++) {
-    // Add counter to ensure we get different points for different attempts
-    const attempt = concatBytes(combinedInput, Uint8Array.from([counter]));
-    const hash = sha256(attempt);
-    
-    try {
-      // Convert hash to a potential private key
-      const privateKey = hash.slice(0, 32);
-      
-      // Try to create a point using the hash as a private key
-      // This is a common approach for hash-to-curve in VRF implementations
-      const point = ProjectivePoint.fromPrivateKey(privateKey);
-      
-      // Return the point (deterministic for the same input)
-      return point;
-    } catch {
-      // If point creation fails, try again with a different counter
-      continue;
-    }
+// Helper to convert hex string (with or without 0x) to Uint8Array
+export function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (cleanHex.length % 2 !== 0) {
+    throw new Error('Invalid hex string length');
   }
-  
-  // This is extremely unlikely to happen with 256 attempts
-  throw new Error('Could not hash to curve after maximum attempts');
-}
-
-/**
- * Generate a new ECVRF key pair
- * @returns An object containing private key (sk) and public key (pk)
- */
-export async function generateKeyPair(): Promise<{ sk: Uint8Array; pk: string }> {
-  const sk = nobleUtils.randomPrivateKey();
-  const pubKey = ProjectivePoint.fromPrivateKey(sk);
-  
-  // Return the public key in compressed form for efficiency
-  return { 
-    sk, 
-    pk: pubKey.toHex(true) 
-  };
-}
-
-/**
- * Create an ECVRF proof for the given message using the private key
- * @param sk - The private key
- * @param alpha - The message to create a proof for
- * @returns An object containing the proof and gamma point
- */
-export async function prove(sk: Uint8Array, alpha: Uint8Array): Promise<{ proof: string; gamma: string }> {
-  // Convert private key to scalar
-  const x = bytesToNumber(sk);
-  
-  // Public key corresponding to sk
-  const Y = ProjectivePoint.fromPrivateKey(sk);
-  
-  // Hash the input to a curve point
-  const H = await hashToCurve(alpha);
-  
-  // Calculate gamma = H^x (the VRF output)
-  const gamma = H.multiply(x);
-  
-  // Choose a random k for the non-interactive zero-knowledge proof
-  const k = bytesToNumber(nobleUtils.randomPrivateKey());
-  
-  // Calculate k·G and k·H for the proof
-  const kG = G.multiply(k);
-  const kH = H.multiply(k);
-  
-  // Calculate the challenge c = H(G,H,Y,gamma,k·G,k·H)
-  const c = taggedHash(
-    'ECVRF_challenge',
-    G.toRawBytes(true),
-    H.toRawBytes(true),
-    Y.toRawBytes(true),
-    gamma.toRawBytes(true),
-    kG.toRawBytes(true),
-    kH.toRawBytes(true)
-  );
-  
-  const cNum = bytesToNumber(c);
-  
-  // Calculate s = k + c·x mod n
-  const s = (k + cNum * x) % CURVE.n;
-  
-  // The proof consists of gamma, c, and s
-  const gammaHex = gamma.toHex(true);  // Use compressed form
-  const cHex = bytesToHex(c);
-  const sHex = s.toString(16).padStart(64, '0');
-  
-  const proof = gammaHex + cHex + sHex;
-  
-  return {
-    proof,
-    gamma: gammaHex
-  };
-}
-
-/**
- * Verify an ECVRF proof
- * @param pkHex - The public key in hex format
- * @param alpha - The original message
- * @param proof - The proof to verify
- * @returns True if the proof is valid, false otherwise
- */
-export async function verify(pkHex: string, alpha: Uint8Array, proof: string): Promise<boolean> {
   try {
-    // The proof string length should be correct
-    // 66 chars for compressed gamma + 64 chars for c + 64 chars for s
-    if (proof.length !== 194) {
+    return Buffer.from(cleanHex, 'hex');
+  } catch (e) {
+    throw new Error(`Invalid hex string characters: ${e}`);
+  }
+}
+
+// Helper to convert Uint8Array to hex string with 0x prefix
+export function bytesToHex(bytes: Uint8Array): string {
+  return '0x' + Buffer.from(bytes).toString('hex');
+}
+
+// Helper to convert Uint8Array to BigInt
+function bytesToBigInt(bytes: Uint8Array): bigint {
+  return BigInt(bytesToHex(bytes));
+}
+
+// Helper to convert BigInt to Uint8Array (32 bytes for scalar, CURVE.n size)
+function bigIntToBytes(num: bigint): Uint8Array {
+  if (num < ZERO) throw new Error("BigInt must be non-negative");
+  let hex = num.toString(16);
+  if (hex.length % 2 !== 0) hex = '0' + hex; // Ensure even length
+  const len = 32 * 2; // 32 bytes for secp256k1 scalar
+  hex = hex.padStart(len, '0'); // Pad to 32 bytes
+  return hexToBytes(hex);
+}
+
+// Helper: Point to Octet String (Compressed)
+function pointToBytes(point: ProjectivePoint): Uint8Array {
+  return point.toRawBytes(true);
+}
+
+// Helper: Octet String to Point
+export function bytesToPoint(bytes: Uint8Array): ProjectivePoint {
+  const hexInput = bytesToHex(bytes).slice(2); // Get hex without 0x
+  // --- TEMPORARY DEBUG LOG --- 
+  // console.log(`[DEBUG ecvrf] bytesToPoint attempting ProjectivePoint.fromHex with: '${hexInput}' (Length: ${hexInput.length})`);
+  // --- END DEBUG LOG ---
+  try {
+    // Use ProjectivePoint.fromHex directly which handles compressed format
+    const point = ProjectivePoint.fromHex(hexInput); // fromHex needs NO prefix
+    point.assertValidity(); // Check if point is on curve
+    return point;
+  } catch (error) {
+    // --- TEMPORARY DEBUG LOG --- 
+    // console.error(`[DEBUG ecvrf] ProjectivePoint.fromHex failed for input: '${hexInput}'`, error);
+    // --- END DEBUG LOG ---
+    throw new Error(`Failed to convert bytes to point: ${error instanceof Error ? error.message : error}`);
+  }
+}
+
+// Hash function (SHA256)
+function H(input: Uint8Array): Uint8Array {
+  return sha256(input);
+}
+
+// Nonce generation (RFC 6979 style, simplified here)
+function generateNonce(sk: bigint, h: Uint8Array): bigint {
+  // WARNING: This is NOT a proper RFC6979 implementation.
+  // For production, use a robust library like `micro-ft-nonce` or `rfc6979`.
+  // This simplified version uses SK + hash for demonstration.
+  const seed = concatBytes(bigIntToBytes(sk), h);
+  let k = bytesToBigInt(H(seed)) % CURVE_ORDER;
+  if (k === ZERO) k = ONE; // Avoid zero nonce
+  return k;
+}
+
+
+// --- ECVRF Functions (Based on RFC 9381 Sections 5.1, 5.2, 5.3, 5.4.4) ---
+
+// 5.4.4. Hash To Curve Try And Increment
+function hashToCurveTAI(alpha: Uint8Array): ProjectivePoint {
+  const PK_STRING = new Uint8Array([SUITE_ID]);
+  let ctr = 0;
+  while (ctr < 256) {
+    const ctr_octet = new Uint8Array([ctr]);
+    const hash_input = concatBytes(PK_STRING, alpha, ctr_octet);
+    const h = H(hash_input);
+    try {
+      // Pass generated hash `h` directly to bytesToPoint, which expects 33 bytes (prefix + hash)
+      const point = bytesToPoint(concatBytes(new Uint8Array([0x02]), h.slice(0, 32))); // Attempt prefix 0x02 with 32 hash bytes
+      // COFACTOR is 1 for secp256k1, so point.multiply(COFACTOR) is just the point itself.
+      // Check if point is the identity element (point at infinity)
+      if (point.equals(ProjectivePoint.ZERO)) continue; 
+      return point;
+    } catch (e) {
+        // Try prefix 0x03 if 0x02 failed
+        try {
+            const point = bytesToPoint(concatBytes(new Uint8Array([0x03]), h.slice(0, 32))); // Attempt prefix 0x03 with 32 hash bytes
+            if (point.equals(ProjectivePoint.ZERO)) continue; // Check if point is identity
+            return point;
+        } catch (e2) {
+             // continue if neither worked
+        }
+    }
+    ctr++;
+  }
+  throw new Error('hashToCurveTAI: Failed to hash to curve');
+}
+
+// 5.1. ECVRF Proving
+export function prove(privateKeyHex: string, alpha: Uint8Array): { proof: Uint8Array; gamma: ProjectivePoint } {
+  const skBytes = hexToBytes(privateKeyHex);
+  const sk = bytesToBigInt(skBytes);
+  if (sk === ZERO || sk >= CURVE_ORDER) {
+    throw new Error('Invalid private key');
+  }
+  const pkPoint = ProjectivePoint.fromPrivateKey(skBytes); // Public key point Y
+
+  // Step 1 & 2: H = HashToCurve(Y, alpha)
+  const H_point = hashToCurveTAI(alpha); // Note: RFC uses Y in hash, simpler TAI version omits it for this suite
+
+  // Step 3: Gamma = H^x
+  const Gamma = H_point.multiply(sk);
+
+  // Step 4: k = NonceGeneration(SK, H)
+  // Using simplified nonce here. For spec compliance, use RFC6979.
+  const k = generateNonce(sk, pointToBytes(H_point));
+
+  // Step 5: c = HashPoints(H, Gamma, kG = G*k, kH = H*k)
+  const kG = ProjectivePoint.BASE.multiply(k);
+  const kH = H_point.multiply(k);
+  const c_input = concatBytes(
+    pointToBytes(ProjectivePoint.BASE),
+    pointToBytes(H_point),
+    pointToBytes(pkPoint),
+    pointToBytes(Gamma),
+    pointToBytes(kG),
+    pointToBytes(kH)
+  );
+  // Hash function needs domain separation - using simple hash for now
+  // Ideally: H2(suite_id, 0x01, c_input)
+  const c_hash = H(concatBytes(new Uint8Array([SUITE_ID, 0x01]), c_input)); // Use constant 1 for challenge generation hash
+  const c = bytesToBigInt(c_hash); // Challenge scalar
+
+  // Step 6: s = (k + c*x) mod q
+  const s = (k + c * sk) % CURVE_ORDER;
+
+  // Step 7: proof = point_to_string(Gamma) || int_to_string(c, n) || int_to_string(s, n)
+  const proof = concatBytes(
+    pointToBytes(Gamma),  // 33 bytes
+    bigIntToBytes(c),      // 32 bytes
+    bigIntToBytes(s)       // 32 bytes
+  );
+  // Total proof length = 33 + 32 + 32 = 97 bytes
+
+  return { proof, gamma: Gamma };
+}
+
+// 5.3. ECVRF Verifying
+export function verify(publicKeyHex: string, alpha: Uint8Array, proof: Uint8Array): boolean {
+  try {
+    const pkBytes = hexToBytes(publicKeyHex);
+    
+    // --- TEMPORARY DEBUG LOG --- 
+    // console.log(`[DEBUG ecvrf verify] Trying to parse Public Key Hex: '${publicKeyHex}'`);
+    // console.log(`[DEBUG ecvrf verify] Public Key bytes length: ${pkBytes.length}`);
+    // --- END DEBUG LOG ---
+    const pkPoint = bytesToPoint(pkBytes); // Public key Y
+
+    // Step 1: Decode proof = Gamma_string || c_string || s_string
+    if (proof.length !== 97) {
+      console.error('Invalid proof length');
       return false;
     }
-    
-    // Split the proof into its components
-    const gammaHex = proof.slice(0, 66);  // 33 bytes compressed
-    const cHex = proof.slice(66, 130);    // 32 bytes
-    const sHex = proof.slice(130, 194);   // 32 bytes
-    
-    // Parse the public key, gamma point, and the scalars c and s
-    const Y = ProjectivePoint.fromHex(pkHex);
-    const gamma = ProjectivePoint.fromHex(gammaHex);
-    const c = BigInt('0x' + cHex);
-    const s = BigInt('0x' + sHex);
-    
-    // Hash the input to a curve point
-    const H = await hashToCurve(alpha);
-    
-    // Calculate U = s·G - c·Y
-    const sG = G.multiply(s);
-    const cY = Y.multiply(c);
-    const U = sG.add(cY.negate());
-    
-    // Calculate V = s·H - c·gamma
-    const sH = H.multiply(s);
-    const cGamma = gamma.multiply(c);
-    const V = sH.add(cGamma.negate());
-    
-    // Recalculate the challenge c' = H(G,H,Y,gamma,U,V)
-    const cPrime = taggedHash(
-      'ECVRF_challenge',
-      G.toRawBytes(true),
-      H.toRawBytes(true),
-      Y.toRawBytes(true),
-      gamma.toRawBytes(true),
-      U.toRawBytes(true),
-      V.toRawBytes(true)
+    const gammaBytes = proof.slice(0, 33);
+    const cBytes = proof.slice(33, 65);
+    const sBytes = proof.slice(65, 97);
+
+    // --- TEMPORARY DEBUG LOG --- 
+    // console.log(`[DEBUG ecvrf verify] Trying to parse Gamma bytes (Length: ${gammaBytes.length})`);
+    // --- END DEBUG LOG ---
+    const Gamma = bytesToPoint(gammaBytes);
+    const c = bytesToBigInt(cBytes);
+    const s = bytesToBigInt(sBytes);
+
+    // Step 2: H = HashToCurve(Y, alpha)
+    const H_point = hashToCurveTAI(alpha);
+
+    // Step 3: Validate Y and Gamma (implicitly done by bytesToPoint)
+    // Step 4: U = s*G - c*Y => U = s*G + (- (c*Y))
+    const sG = ProjectivePoint.BASE.multiply(s);
+    const cY = pkPoint.multiply(c);
+    const U = sG.add(cY.negate()); // Use add(negate()) instead of subtract
+
+    // Step 5: V = s*H - c*Gamma => V = s*H + (- (c*Gamma))
+    const sH = H_point.multiply(s);
+    const cGamma = Gamma.multiply(c);
+    const V = sH.add(cGamma.negate()); // Use add(negate()) instead of subtract
+
+    // Step 6: c' = HashPoints(G, H, Y, Gamma, U, V)
+    const c_prime_input = concatBytes(
+      pointToBytes(ProjectivePoint.BASE),
+      pointToBytes(H_point),
+      pointToBytes(pkPoint),
+      pointToBytes(Gamma),
+      pointToBytes(U),
+      pointToBytes(V)
     );
-    
-    // The proof is valid if c' = c
-    return bytesToHex(cPrime) === cHex;
+    // Hash function needs domain separation
+    const c_prime_hash = H(concatBytes(new Uint8Array([SUITE_ID, 0x01]), c_prime_input)); // Use constant 1 for challenge generation hash
+    const c_prime = bytesToBigInt(c_prime_hash);
+
+    // Step 7: Check c' == c
+    return c === c_prime;
   } catch (error) {
-    // If any step fails (e.g., invalid point encoding), the proof is invalid
-    console.error('Verification error:', error instanceof Error ? error.message : String(error));
+    // --- TEMPORARY DEBUG LOG --- 
+    // console.error(`[DEBUG ecvrf verify] Verification caught error. Error occurred after last successful log.`);
+    // --- END DEBUG LOG ---
+    console.error(`Verification failed: ${error instanceof Error ? error.message : error}`);
     return false;
   }
 }
 
-/**
- * Convert an ECVRF proof gamma value to a hash
- * @param gammaHex - The gamma component of the proof in hex format
- * @returns A 32-byte hash derived from gamma
- */
-export async function proofToHash(gammaHex: string): Promise<Uint8Array> {
-  try {
-    // Parse the gamma point
-    const gamma = ProjectivePoint.fromHex(gammaHex);
-    
-    // Hash the gamma point to produce the final VRF output
-    return taggedHash('ECVRF_hash', SUITE_STRING, gamma.toRawBytes(true));
-  } catch (error) {
-    // If gamma is invalid, throw an error
-    throw new Error(`Invalid gamma value: ${error instanceof Error ? error.message : String(error)}`);
+// 5.2. ECVRF Proof To Hash
+export function proofToHash(proof: Uint8Array): Uint8Array {
+  // Step 1: Decode proof to get Gamma
+  if (proof.length !== 97) {
+    throw new Error('Invalid proof length for hashing');
   }
+  const gammaBytes = proof.slice(0, 33);
+  let Gamma: ProjectivePoint;
+  try {
+      Gamma = bytesToPoint(gammaBytes);
+  } catch (e) {
+      throw new Error(`Cannot hash proof: Invalid Gamma component. ${e}`);
+  }
+
+  // Step 2: hash = H(suite_id || 0x03 || point_to_string(Gamma))
+  const hash_input = concatBytes(
+    new Uint8Array([SUITE_ID, 0x03]), // Use constant 3 for proof-to-hash
+    pointToBytes(Gamma)
+  );
+  const hash = H(hash_input);
+  return hash; // Return 32-byte hash
+}
+
+// --- Wrapper/Exported Functions ---
+
+export async function generateVRFKeyPair(): Promise<{ sk: string; pk: string }> {
+  let skBytes: Uint8Array;
+  let sk: bigint;
+  // Keep generating until a valid key is found (non-zero, less than curve order)
+  do {
+    skBytes = randomBytes(32);
+    sk = bytesToBigInt(skBytes);
+  } while (sk === ZERO || sk >= CURVE_ORDER);
+  
+  const pkPoint = ProjectivePoint.fromPrivateKey(skBytes);
+  return {
+    sk: bytesToHex(skBytes),
+    pk: bytesToHex(pointToBytes(pkPoint)) // Compressed public key hex
+  };
+}
+
+export async function proveVRF(privateKeyHex: string, alphaHex: string): Promise<{ proofHex: string; gammaHex: string }> {
+  const alphaBytes = hexToBytes(alphaHex);
+  const { proof: proofBytes, gamma } = prove(privateKeyHex, alphaBytes);
+  return {
+    proofHex: bytesToHex(proofBytes),
+    gammaHex: bytesToHex(pointToBytes(gamma))
+  };
+}
+
+export async function verifyVRF(publicKeyHex: string, alphaHex: string, proofHex: string): Promise<boolean> {
+  const alphaBytes = hexToBytes(alphaHex);
+  const proofBytes = hexToBytes(proofHex);
+  return verify(publicKeyHex, alphaBytes, proofBytes);
+}
+
+export async function vrfProofToHash(proofHex: string): Promise<string> {
+  const proofBytes = hexToBytes(proofHex);
+  const hashBytes = proofToHash(proofBytes);
+  return bytesToHex(hashBytes); // Return B256 hex hash
 }

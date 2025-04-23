@@ -1,6 +1,18 @@
-import { describe, test, expect, beforeAll } from 'vitest';
-import { generateKeyPair, prove, verify, proofToHash } from '../src';
-import { utf8ToBytes, bytesToHex, hexToBytes } from '../src/utils';
+import { describe, test, expect } from 'vitest';
+import {
+  generateVRFKeyPair,
+  proveVRF,
+  verifyVRF,
+  vrfProofToHash,
+  prove as coreProve,
+  verify as coreVerify,
+  proofToHash as coreProofToHash,
+  hexToBytes,
+  bytesToPoint,
+  bytesToHex
+} from '../src';
+import { arrayify, getRandomB256, hexlify } from 'fuels';
+import { ProjectivePoint, utils as nobleUtils } from '@noble/secp256k1';
 
 /**
  * ECVRF Library Test Suite
@@ -25,200 +37,253 @@ import { utf8ToBytes, bytesToHex, hexToBytes } from '../src/utils';
  * tests can be enabled.
  */
 
-interface TestVector {
-  privateKey: string;
-  publicKey: string;
-  message: string;
-  proof: string;
-  hash: string;
-}
+describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
 
-// Test vectors will be populated in beforeAll
-const TEST_VECTORS: TestVector[] = [];
+  // Helper to generate keys using noble directly for known private keys
+  const getKeyPairFromSkBytes = (skBytes: Uint8Array): { sk: Uint8Array, pkHex: string } => {
+    if (skBytes.length !== 32) throw new Error("Private key must be 32 bytes");
+    const pkPoint = ProjectivePoint.fromPrivateKey(skBytes);
+    // Use the helper from src/index.ts if possible, otherwise replicate logic
+    const pkBytes = pkPoint.toRawBytes(true);
+    const pkHex = '0x' + Buffer.from(pkBytes).toString('hex');
+    return {
+      sk: skBytes,
+      pkHex: pkHex // Compressed hex public key WITH 0x prefix
+    };
+  };
 
-describe('ECVRF Library', () => {
-  beforeAll(async () => {
-    // Generate test vectors with known keys
-    const privateKey1 = hexToBytes('c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721');
-    const keyPair1 = await generateKeyPair();
-    
-    // Create vectors with different messages
-    const messages = [
-      'sample',
-      '',
-      'test message',
-      'This is a longer test vector for VRF testing'
-    ];
+  test('generateVRFKeyPair: creates valid compressed key pair', async () => {
+    const { sk, pk } = await generateVRFKeyPair(); // Use the new function name
 
-    for (const message of messages) {
-      const messageBytes = utf8ToBytes(message);
-      
-      try {
-        // Generate proof with known key
-        const { proof, gamma } = await prove(privateKey1, messageBytes);
-        const hash = await proofToHash(gamma);
-        
-        TEST_VECTORS.push({
-          privateKey: bytesToHex(privateKey1),
-          publicKey: keyPair1.pk,
-          message,
-          proof,
-          hash: bytesToHex(hash)
-        });
-      } catch (error) {
-        console.log(`Error generating test vector for message "${message}": ${error}`);
-      }
-    }
+    expect(sk).toMatch(/^0x[0-9a-f]{64}$/); // sk is now hex string
+    const skBytes = hexToBytes(sk);
+    expect(skBytes.length).toBe(32); // 32-byte private key
+
+    expect(pk).toMatch(/^0x(02|03)[0-9a-f]{64}$/); // pk is hex string, compressed
+    expect(pk.length).toBe(68);
+
+    // Check if the public key is a valid point (optional sanity check)
+    // bytesToPoint expects Uint8Array
+    expect(() => bytesToPoint(hexToBytes(pk))).not.toThrow();
   });
 
-  test('Key pair generation creates valid keys', async () => {
-    const { sk, pk } = await generateKeyPair();
-    
-    expect(sk).toBeInstanceOf(Uint8Array);
-    expect(sk.length).toBe(32); // 256-bit private key
-    expect(typeof pk).toBe('string');
-    expect(pk.length).toBeGreaterThan(0);
+  test('proveVRF: returns correctly formatted proof and gamma hex', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex, gammaHex } = await proveVRF(sk, inputHex);
+
+    // Gamma: Compressed point hex (0x + 33 bytes = 68 chars)
+    expect(gammaHex).toMatch(/^0x(02|03)[0-9a-f]{64}$/);
+    expect(() => bytesToPoint(hexToBytes(gammaHex))).not.toThrow(); // Check if gamma is valid point
+
+    // Proof: 97 bytes hex = 194 hex chars + 0x = 196 total chars
+    expect(proofHex).toMatch(/^0x[0-9a-f]{194}$/);
+    expect(proofHex.length).toBe(196);
+    expect(proofHex.startsWith(gammaHex)).toBe(true); // Proof should start with gamma
   });
 
-  test('Generate consistent keys from the same private key', async () => {
-    // Use a fixed private key
-    const privateKey = hexToBytes('c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721');
-    
-    // Generate public key
-    const { pk: pk1 } = await generateKeyPair();
-    const { pk: pk2 } = await generateKeyPair();
-    
-    // Different random keys should generate different public keys
-    expect(pk1).not.toBe(pk2);
-  });
+  test('proveVRF/verifyVRF: round trip validation succeeds', async () => {
+    const { sk, pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
 
-  test('Prove function returns expected structure', async () => {
-    const { sk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    const result = await prove(sk, message);
-    
-    expect(result).toHaveProperty('proof');
-    expect(result).toHaveProperty('gamma');
-    expect(typeof result.proof).toBe('string');
-    expect(typeof result.gamma).toBe('string');
-    
-    // Proof should be correctly formatted: 33-byte compressed gamma + 32-byte c + 32-byte s 
-    // = 97 bytes = 194 hex characters
-    expect(result.proof.length).toBe(194);
-  });
+    const { proofHex } = await proveVRF(sk, inputHex);
 
-  test('Prove generates valid proofs that verify correctly', async () => {
-    const { sk, pk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    // Create two proofs for the same message using the same key
-    const result1 = await prove(sk, message);
-    const result2 = await prove(sk, message);
-    
-    // The proofs might be different due to the random k value used,
-    // but they should both verify correctly
-    const isValid1 = await verify(pk, message, result1.proof);
-    const isValid2 = await verify(pk, message, result2.proof);
-    
-    expect(isValid1).toBe(true);
-    expect(isValid2).toBe(true);
-    
-    // The gamma value (VRF output point) should be the same
-    expect(result1.gamma).toBe(result2.gamma);
-  });
+    // Verify using the compressed public key 'pk' and hex inputs
+    const isValid = await verifyVRF(pk, inputHex, proofHex);
 
-  test('Verify function validates proofs correctly', async () => {
-    const { sk, pk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    const { proof } = await prove(sk, message);
-    const isValid = await verify(pk, message, proof);
-    
     expect(isValid).toBe(true);
   });
 
-  test('Verify fails with incorrect message', async () => {
-    const { sk, pk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    const wrongMessage = utf8ToBytes('wrong message');
-    
-    const { proof } = await prove(sk, message);
-    const isValid = await verify(pk, wrongMessage, proof);
-    
-    expect(isValid).toBe(false);
-  });
+   test('prove/verify core: round trip with known private key', async () => {
+    // Use a fixed known private key
+    const privateKeyBytes = nobleUtils.randomPrivateKey(); 
+    const { pkHex } = getKeyPairFromSkBytes(privateKeyBytes);
+    const privateKeyHex = '0x' + Buffer.from(privateKeyBytes).toString('hex');
+    const alphaBytes = new TextEncoder().encode("test message for VRF");
 
-  test('Verify fails with incorrect public key', async () => {
-    const { sk } = await generateKeyPair();
-    const { pk: wrongPk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    const { proof } = await prove(sk, message);
-    const isValid = await verify(wrongPk, message, proof);
-    
-    expect(isValid).toBe(false);
-  });
+    // Use core prove function (takes hex sk, bytes alpha; returns bytes proof)
+    const { proof: proofBytes } = coreProve(privateKeyHex, alphaBytes);
 
-  test('ProofToHash function returns a 32-byte hash', async () => {
-    const { sk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    const { gamma } = await prove(sk, message);
-    const hash = await proofToHash(gamma);
-    
-    expect(hash).toBeInstanceOf(Uint8Array);
-    expect(hash.length).toBe(32); // SHA-256 output is 32 bytes
-  });
+    // Use core verify function (takes hex pk, bytes alpha, bytes proof)
+    const isValid = coreVerify(pkHex, alphaBytes, proofBytes);
 
-  test('ProofToHash is deterministic', async () => {
-    const { sk } = await generateKeyPair();
-    const message = utf8ToBytes('test message');
-    
-    const { gamma } = await prove(sk, message);
-    const hash1 = await proofToHash(gamma);
-    const hash2 = await proofToHash(gamma);
-    
-    // Same gamma should produce the same hash
-    expect(bytesToHex(hash1)).toBe(bytesToHex(hash2));
-  });
-
-  // Test with test vectors
-  test.each(TEST_VECTORS)('Test vector verification: $message', async ({ publicKey, message, proof }) => {
-    const isValid = await verify(publicKey, utf8ToBytes(message), proof);
     expect(isValid).toBe(true);
   });
 
-  test('Full VRF flow - hash output uniqueness', async () => {
-    // Generate a key pair
-    const { sk, pk } = await generateKeyPair();
-    
-    // Create two different messages
-    const message1 = utf8ToBytes('message1');
-    const message2 = utf8ToBytes('message2');
-    
-    // Generate proofs for both messages
-    const { gamma: gamma1 } = await prove(sk, message1);
-    const { gamma: gamma2 } = await prove(sk, message2);
-    
-    // Get the VRF outputs
-    const hash1 = await proofToHash(gamma1);
-    const hash2 = await proofToHash(gamma2);
-    
-    // Different messages should produce different hashes
-    expect(bytesToHex(hash1)).not.toBe(bytesToHex(hash2));
+
+  test('proveVRF: deterministic gamma for same sk/input', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    // Generate two proofs for the same input
+    const result1 = await proveVRF(sk, inputHex);
+    const result2 = await proveVRF(sk, inputHex);
+
+    // Gamma (VRF output point hex) MUST be the same
+    expect(result1.gammaHex).toBe(result2.gammaHex);
+
+    // Proofs hex might differ if a random nonce was used, 
+    // but with deterministic nonce (like RFC6979 or simplified version),
+    // the proof hex SHOULD be the same.
+    expect(result1.proofHex).toEqual(result2.proofHex);
+
+    // Verify both proofs
+    const { pk } = await generateVRFKeyPair(); // Need a pk for verification, doesn't matter which one for this test logic
+    const isValid1 = await verifyVRF(pk, inputHex, result1.proofHex);
+    const isValid2 = await verifyVRF(pk, inputHex, result2.proofHex);
+    // Re-fetch pk associated with sk for correct verification
+    const skBytes = hexToBytes(sk);
+    const actualPkPoint = ProjectivePoint.fromPrivateKey(skBytes);
+    const actualPkHex = '0x' + actualPkPoint.toHex(true);
+
+    const isValid1_correct = await verifyVRF(actualPkHex, inputHex, result1.proofHex);
+    const isValid2_correct = await verifyVRF(actualPkHex, inputHex, result2.proofHex);
+
+    expect(isValid1_correct).toBe(true);
+    expect(isValid2_correct).toBe(true);
   });
 
-  test('Handle invalid inputs gracefully', async () => {
-    const { pk } = await generateKeyPair();
-    const message = utf8ToBytes('test');
-    
-    // Test with invalid proof
-    const invalidProof = 'abcdef'; // Too short
-    const result = await verify(pk, message, invalidProof);
-    expect(result).toBe(false);
-    
-    // Test with invalid gamma for proofToHash
-    await expect(proofToHash('invalidgamma')).rejects.toThrow();
+  test('verifyVRF: fails with incorrect input (alpha)', async () => {
+    const { sk, pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+    const wrongInputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+
+    // Verify with the wrong input hex
+    const isValid = await verifyVRF(pk, wrongInputHex, proofHex);
+
+    expect(isValid).toBe(false);
   });
+
+  test('verifyVRF: fails with incorrect public key', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const { pk: wrongPk } = await generateVRFKeyPair(); // Generate a different compressed pk hex
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+
+    // Verify with the wrong public key hex
+    const isValid = await verifyVRF(wrongPk, inputHex, proofHex);
+
+    expect(isValid).toBe(false);
+  });
+
+  test('verifyVRF: fails with tampered proof (gamma component)', async () => {
+    const { sk, pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+    const proofBytes = hexToBytes(proofHex);
+
+    // Tamper with the gamma part (first 33 bytes)
+    proofBytes[5] = (proofBytes[5] + 1) % 256; // Flip a byte
+    const tamperedProofHex = bytesToHex(proofBytes);
+
+    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    expect(isValid).toBe(false);
+  });
+
+  test('verifyVRF: fails with tampered proof (c component)', async () => {
+    const { sk, pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+    const proofBytes = hexToBytes(proofHex);
+
+    // Tamper with the c part (bytes 33-64)
+    proofBytes[40] = (proofBytes[40] + 1) % 256; // Flip a byte
+    const tamperedProofHex = bytesToHex(proofBytes);
+
+    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    expect(isValid).toBe(false);
+  });
+
+    test('verifyVRF: fails with tampered proof (s component)', async () => {
+    const { sk, pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+    const proofBytes = hexToBytes(proofHex);
+
+    // Tamper with the s part (bytes 65-96)
+    proofBytes[70] = (proofBytes[70] + 1) % 256; // Flip a byte
+    const tamperedProofHex = bytesToHex(proofBytes);
+
+    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    expect(isValid).toBe(false);
+  });
+
+  test('verifyVRF: fails with incorrect proof length', async () => {
+    const { pk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+    const shortProofHex = '0xabcdef1234';
+
+    const isValid = await verifyVRF(pk, inputHex, shortProofHex);
+    expect(isValid).toBe(false); // Should fail due to length check
+  });
+
+  test('vrfProofToHash: returns correct B256 format', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+    const hashHex = await vrfProofToHash(proofHex);
+
+    // B256 format: 0x + 32 bytes = 64 hex characters
+    expect(hashHex).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  test('vrfProofToHash: deterministic output for same proof', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const inputHex = getRandomB256();
+
+    const { proofHex } = await proveVRF(sk, inputHex);
+
+    // Calculate hash twice from the same proof hex
+    const hash1 = await vrfProofToHash(proofHex);
+    const hash2 = await vrfProofToHash(proofHex);
+
+    expect(hash1).toBe(hash2);
+  });
+
+  test('vrfProofToHash: different proofs produce different hashes', async () => {
+    const { sk } = await generateVRFKeyPair();
+    const inputHex1 = getRandomB256();
+    const inputHex2 = getRandomB256(); // Different input
+
+    expect(inputHex1).not.toEqual(inputHex2); // Ensure inputs differ
+
+    const { proofHex: proofHex1 } = await proveVRF(sk, inputHex1);
+    const { proofHex: proofHex2 } = await proveVRF(sk, inputHex2);
+
+    // Proofs should differ (due to gamma and/or k)
+    expect(proofHex1).not.toBe(proofHex2);
+
+    const hash1 = await vrfProofToHash(proofHex1);
+    const hash2 = await vrfProofToHash(proofHex2);
+
+    // Hashes should differ if proofs differ
+    expect(hash1).not.toBe(hash2);
+  });
+
+  test('vrfProofToHash: fails with invalid proof hex (length)', async () => {
+    const invalidProofHex = '0xinvalidproofhex';
+    await expect(vrfProofToHash(invalidProofHex)).rejects.toThrow(/Invalid hex string/);
+  });
+
+  test('vrfProofToHash: fails with proof containing invalid gamma hex', async () => {
+       const { sk } = await generateVRFKeyPair();
+       const inputHex = getRandomB256();
+       const { proofHex } = await proveVRF(sk, inputHex);
+
+       // Create proof bytes with invalid gamma (tamper first byte)
+       const proofBytes = hexToBytes(proofHex);
+       proofBytes[0] = 0x01; // Invalid prefix for compressed point
+       const badProofHex = bytesToHex(proofBytes);
+
+       await expect(vrfProofToHash(badProofHex)).rejects.toThrow(/Invalid Gamma component/);
+  });
+
 }); 
