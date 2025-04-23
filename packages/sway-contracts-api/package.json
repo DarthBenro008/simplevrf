@@ -1,0 +1,19 @@
+{
+  "name": "@simplevrf/sway-contracts-api",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "generate": "bunx fuels@0.100.3 build",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "fuels": "0.100.3"
+  }
+}

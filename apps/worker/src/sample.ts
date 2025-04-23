@@ -1,6 +1,6 @@
 import { BN, bn, getRandomB256, Provider, WalletUnlocked } from "fuels";
-import { SimplevrfFuelExample, SimplevrfFuel } from "./sway-contracts-api";
-import type { ContractIdInput } from "./sway-contracts-api/contracts/SimplevrfFuelExample";
+import { SimplevrfFuelExample, SimplevrfFuel } from "@simplevrf/sway-contracts-api";
+import type { ContractIdInput } from "@simplevrf/sway-contracts-api/dist/contracts/SimplevrfFuelExample";
 
 
 

@@ -9,8 +9,8 @@ import {
 } from "@simplevrf/ecvrf";
 import { getRandomB256, arrayify, Wallet, Provider, WalletUnlocked } from "fuels";
 import { ProjectivePoint } from '@noble/secp256k1';
-import { SimplevrfFuel } from "./sway-contracts-api";
-import type { ChunkedProofInput } from "./sway-contracts-api/contracts/SimplevrfFuel";
+import { SimplevrfFuel } from "@simplevrf/sway-contracts-api";
+import type { ChunkedProofInput } from "@simplevrf/sway-contracts-api/dist/contracts/SimplevrfFuel";
 
 async function main() {
   const provider = new Provider("https://testnet.fuel.network/v1/graphql");

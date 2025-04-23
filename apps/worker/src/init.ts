@@ -1,6 +1,6 @@
 import { Address, Provider, WalletUnlocked, type AddressInput } from "fuels";
-import { SimplevrfFuel } from "./sway-contracts-api";
-import type { AssetIdInput } from "./sway-contracts-api/contracts/SimplevrfFuel";
+import { SimplevrfFuel } from "@simplevrf/sway-contracts-api";
+import type { AssetIdInput } from "@simplevrf/sway-contracts-api/dist/contracts/SimplevrfFuel";
 
 async function main() {
     const ETH_ASSET_ID = "0xf8f8b6283d7fa5b672b530cbb84fcccb4ff8dc40f8176ef4544ddb1f1952ad07"

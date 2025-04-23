@@ -2,10 +2,10 @@ import { createConfig } from 'fuels';
 
 export default createConfig({
   contracts: [
-        '../../packages/simplevrf-fuel',
-        '../../packages/simplevrf-fuel-example',
+        '../simplevrf-fuel',
+        '../simplevrf-fuel-example',
   ],
-  output: './src/sway-contracts-api',
+  output: './src/',
 });
 
 /**

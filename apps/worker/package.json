@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "init": "bun run src/init.ts",
-    "sample": "bun run src/sample.ts",
-    "contract": "bunx fuels@0.100.3 build"
+    "sample": "bun run src/sample.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -17,6 +16,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "fuels": "0.100.1"
+    "fuels": "0.100.3",
+    "@simplevrf/sway-contracts-api": "workspace:*"
   }
 }
