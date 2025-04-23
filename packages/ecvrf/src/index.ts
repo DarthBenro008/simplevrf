@@ -13,6 +13,9 @@ const TWO = BigInt(2);
 
 // Helper to convert hex string (with or without 0x) to Uint8Array
 export function hexToBytes(hex: string): Uint8Array {
+  if (typeof hex !== 'string') {
+    throw new Error(`Invalid input type for hexToBytes: expected string, got ${typeof hex}`);
+  }
   const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
   if (cleanHex.length % 2 !== 0) {
     throw new Error('Invalid hex string length');
@@ -169,6 +172,9 @@ export function prove(privateKeyHex: string, alpha: Uint8Array): { proof: Uint8A
 // 5.3. ECVRF Verifying
 export function verify(publicKeyHex: string, alpha: Uint8Array, proof: Uint8Array): boolean {
   try {
+    // --- TEMPORARY DEBUG LOG ---
+    // console.log(`[DEBUG verify] typeof publicKeyHex (at start): ${typeof publicKeyHex}`);
+    // --- END DEBUG LOG ---
     const pkBytes = hexToBytes(publicKeyHex);
     
     // --- TEMPORARY DEBUG LOG --- 
@@ -223,9 +229,6 @@ export function verify(publicKeyHex: string, alpha: Uint8Array, proof: Uint8Arra
     // Step 7: Check c' == c
     return c === c_prime;
   } catch (error) {
-    // --- TEMPORARY DEBUG LOG --- 
-    // console.error(`[DEBUG ecvrf verify] Verification caught error. Error occurred after last successful log.`);
-    // --- END DEBUG LOG ---
     console.error(`Verification failed: ${error instanceof Error ? error.message : error}`);
     return false;
   }
@@ -256,7 +259,7 @@ export function proofToHash(proof: Uint8Array): Uint8Array {
 
 // --- Wrapper/Exported Functions ---
 
-export async function generateVRFKeyPair(): Promise<{ sk: string; pk: string }> {
+export function generateVRFKeyPair(): { sk: string; pk: string } {
   let skBytes: Uint8Array;
   let sk: bigint;
   // Keep generating until a valid key is found (non-zero, less than curve order)
@@ -272,7 +275,7 @@ export async function generateVRFKeyPair(): Promise<{ sk: string; pk: string }> 
   };
 }
 
-export async function proveVRF(privateKeyHex: string, alphaHex: string): Promise<{ proofHex: string; gammaHex: string }> {
+export function proveVRF(privateKeyHex: string, alphaHex: string): { proofHex: string; gammaHex: string } {
   const alphaBytes = hexToBytes(alphaHex);
   const { proof: proofBytes, gamma } = prove(privateKeyHex, alphaBytes);
   return {
@@ -281,13 +284,68 @@ export async function proveVRF(privateKeyHex: string, alphaHex: string): Promise
   };
 }
 
-export async function verifyVRF(publicKeyHex: string, alphaHex: string, proofHex: string): Promise<boolean> {
-  const alphaBytes = hexToBytes(alphaHex);
-  const proofBytes = hexToBytes(proofHex);
-  return verify(publicKeyHex, alphaBytes, proofBytes);
+// --- New Exported Type for Chunked Proof ---
+/**
+ * Represents the 97-byte VRF proof split into Fuel-compatible types.
+ * p1: Bytes 0-31
+ * p2: Bytes 32-63
+ * p3: Bytes 64-95
+ * p4: Byte 96
+ */
+export interface ChunkedProof {
+    p1: string; // b256 hex string (0x...)
+    p2: string; // b256 hex string (0x...)
+    p3: string; // b256 hex string (0x...)
+    p4: number; // u8
 }
 
-export async function vrfProofToHash(proofHex: string): Promise<string> {
+// Updated verifyVRF to accept ChunkedProof and remove async
+export function verifyVRF(publicKeyHex: string, alphaHex: string, chunkedProof: ChunkedProof): boolean {
+  try {
+      // --- TEMPORARY DEBUG LOG --- 
+      // console.log(`[DEBUG verifyVRF] typeof alphaHex: ${typeof alphaHex}`);
+      // console.log(`[DEBUG verifyVRF] typeof chunkedProof.p1: ${typeof chunkedProof.p1}`);
+      // console.log(`[DEBUG verifyVRF] typeof chunkedProof.p2: ${typeof chunkedProof.p2}`);
+      // console.log(`[DEBUG verifyVRF] typeof chunkedProof.p3: ${typeof chunkedProof.p3}`);
+      // --- END DEBUG LOG ---
+
+      const alphaBytes = hexToBytes(alphaHex); // Calls hexToBytes
+
+      // Reconstruct the 97-byte proof from chunks
+      const p1Bytes = hexToBytes(chunkedProof.p1); // Calls hexToBytes
+      const p2Bytes = hexToBytes(chunkedProof.p2); // Calls hexToBytes
+      const p3Bytes = hexToBytes(chunkedProof.p3); // Calls hexToBytes
+      // Ensure p4 is a valid u8
+      if (chunkedProof.p4 < 0 || chunkedProof.p4 > 255 || !Number.isInteger(chunkedProof.p4)) {
+          throw new Error('Invalid p4 value (must be a u8)');
+      }
+      const p4Bytes = new Uint8Array([chunkedProof.p4]);
+
+      // Check chunk lengths
+      if (p1Bytes.length !== 32 || p2Bytes.length !== 32 || p3Bytes.length !== 32) {
+          throw new Error('Invalid b256 chunk length in proof');
+      }
+
+      const proofBytes = concatBytes(p1Bytes, p2Bytes, p3Bytes, p4Bytes);
+
+      if (proofBytes.length !== 97) {
+          // This should ideally not happen if concat works correctly
+          throw new Error('Internal error: Reconstructed proof length is not 97');
+      }
+
+      // --- TEMPORARY DEBUG LOG ---
+      // console.log(`[DEBUG verifyVRF] typeof publicKeyHex (before calling verify): ${typeof publicKeyHex}`);
+      // --- END DEBUG LOG ---
+
+      // Call the core verify function with reconstructed bytes
+      return verify(publicKeyHex, alphaBytes, proofBytes); // Core verify is synchronous
+  } catch (error) {
+      console.error(`verifyVRF failed during input processing: ${error}`);
+      return false;
+  }
+}
+
+export function vrfProofToHash(proofHex: string): string {
   const proofBytes = hexToBytes(proofHex);
   const hashBytes = proofToHash(proofBytes);
   return bytesToHex(hashBytes); // Return B256 hex hash

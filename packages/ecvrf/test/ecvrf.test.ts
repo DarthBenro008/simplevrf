@@ -9,7 +9,8 @@ import {
   proofToHash as coreProofToHash,
   hexToBytes,
   bytesToPoint,
-  bytesToHex
+  bytesToHex,
+  ChunkedProof
 } from '../src';
 import { arrayify, getRandomB256, hexlify } from 'fuels';
 import { ProjectivePoint, utils as nobleUtils } from '@noble/secp256k1';
@@ -37,20 +38,34 @@ import { ProjectivePoint, utils as nobleUtils } from '@noble/secp256k1';
  * tests can be enabled.
  */
 
-describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
-
-  // Helper to generate keys using noble directly for known private keys
-  const getKeyPairFromSkBytes = (skBytes: Uint8Array): { sk: Uint8Array, pkHex: string } => {
-    if (skBytes.length !== 32) throw new Error("Private key must be 32 bytes");
-    const pkPoint = ProjectivePoint.fromPrivateKey(skBytes);
-    // Use the helper from src/index.ts if possible, otherwise replicate logic
-    const pkBytes = pkPoint.toRawBytes(true);
-    const pkHex = '0x' + Buffer.from(pkBytes).toString('hex');
-    return {
-      sk: skBytes,
-      pkHex: pkHex // Compressed hex public key WITH 0x prefix
-    };
+// Helper to generate keys using noble directly for known private keys
+const getKeyPairFromSkBytes = (skBytes: Uint8Array): { sk: Uint8Array, pkHex: string } => {
+  if (skBytes.length !== 32) throw new Error("Private key must be 32 bytes");
+  const pkPoint = ProjectivePoint.fromPrivateKey(skBytes);
+  // Use the helper from src/index.ts if possible, otherwise replicate logic
+  const pkBytes = pkPoint.toRawBytes(true);
+  const pkHex = '0x' + Buffer.from(pkBytes).toString('hex');
+  return {
+    sk: skBytes,
+    pkHex: pkHex // Compressed hex public key WITH 0x prefix
   };
+};
+
+// Helper function to chunk proof hex
+function chunkProof(proofHex: string): ChunkedProof {
+    const proofBytes = hexToBytes(proofHex);
+    if (proofBytes.length !== 97) {
+        throw new Error(`Invalid proof length for chunking: ${proofBytes.length}`);
+    }
+    return {
+        p1: bytesToHex(proofBytes.slice(0, 32)),
+        p2: bytesToHex(proofBytes.slice(32, 64)),
+        p3: bytesToHex(proofBytes.slice(64, 96)),
+        p4: proofBytes[96]
+    };
+}
+
+describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
 
   test('generateVRFKeyPair: creates valid compressed key pair', async () => {
     const { sk, pk } = await generateVRFKeyPair(); // Use the new function name
@@ -84,13 +99,22 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
   });
 
   test('proveVRF/verifyVRF: round trip validation succeeds', async () => {
-    const { sk, pk } = await generateVRFKeyPair();
-    const inputHex = getRandomB256();
+    const { sk, pk } = await generateVRFKeyPair(); 
+    const inputHex = getRandomB256(); 
+    const { proofHex } = await proveVRF(sk, inputHex); 
 
-    const { proofHex } = await proveVRF(sk, inputHex);
+    // Convert proofHex to ChunkedProof
+    const proofBytes = hexToBytes(proofHex); 
+    const chunkedProof: ChunkedProof = {
+        p1: bytesToHex(proofBytes.slice(0, 32)),   
+        p2: bytesToHex(proofBytes.slice(32, 64)),  
+        p3: bytesToHex(proofBytes.slice(64, 96)),  
+        p4: proofBytes[96]                         
+    };
 
     // Verify using the compressed public key 'pk' and hex inputs
-    const isValid = await verifyVRF(pk, inputHex, proofHex);
+    // Pass the chunkedProof object, not proofHex
+    const isValid = verifyVRF(pk, inputHex, chunkedProof); // Corrected variable
 
     expect(isValid).toBe(true);
   });
@@ -123,22 +147,35 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
     // Gamma (VRF output point hex) MUST be the same
     expect(result1.gammaHex).toBe(result2.gammaHex);
 
-    // Proofs hex might differ if a random nonce was used, 
-    // but with deterministic nonce (like RFC6979 or simplified version),
-    // the proof hex SHOULD be the same.
+    // Proofs hex should be the same with deterministic nonce
     expect(result1.proofHex).toEqual(result2.proofHex);
 
     // Verify both proofs
-    const { pk } = await generateVRFKeyPair(); // Need a pk for verification, doesn't matter which one for this test logic
-    const isValid1 = await verifyVRF(pk, inputHex, result1.proofHex);
-    const isValid2 = await verifyVRF(pk, inputHex, result2.proofHex);
     // Re-fetch pk associated with sk for correct verification
     const skBytes = hexToBytes(sk);
     const actualPkPoint = ProjectivePoint.fromPrivateKey(skBytes);
     const actualPkHex = '0x' + actualPkPoint.toHex(true);
 
-    const isValid1_correct = await verifyVRF(actualPkHex, inputHex, result1.proofHex);
-    const isValid2_correct = await verifyVRF(actualPkHex, inputHex, result2.proofHex);
+    // --- Corrected Chunking Logic ---
+    const proofBytes1 = hexToBytes(result1.proofHex);
+    const chunkedProof1: ChunkedProof = {
+        p1: bytesToHex(proofBytes1.slice(0, 32)),
+        p2: bytesToHex(proofBytes1.slice(32, 64)),
+        p3: bytesToHex(proofBytes1.slice(64, 96)),
+        p4: proofBytes1[96]
+    };
+    const proofBytes2 = hexToBytes(result2.proofHex);
+    const chunkedProof2: ChunkedProof = {
+        p1: bytesToHex(proofBytes2.slice(0, 32)),
+        p2: bytesToHex(proofBytes2.slice(32, 64)),
+        p3: bytesToHex(proofBytes2.slice(64, 96)),
+        p4: proofBytes2[96]
+    };
+    // --- End Corrected Chunking Logic ---
+
+    // verifyVRF is now synchronous - Pass chunked proofs
+    const isValid1_correct = verifyVRF(actualPkHex, inputHex, chunkedProof1); // Corrected variable
+    const isValid2_correct = verifyVRF(actualPkHex, inputHex, chunkedProof2); // Corrected variable
 
     expect(isValid1_correct).toBe(true);
     expect(isValid2_correct).toBe(true);
@@ -150,22 +187,24 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
     const wrongInputHex = getRandomB256();
 
     const { proofHex } = await proveVRF(sk, inputHex);
+    const chunkedProof = chunkProof(proofHex); // Chunk the valid proof
 
     // Verify with the wrong input hex
-    const isValid = await verifyVRF(pk, wrongInputHex, proofHex);
+    const isValid = verifyVRF(pk, wrongInputHex, chunkedProof); // Pass chunked proof
 
     expect(isValid).toBe(false);
   });
 
   test('verifyVRF: fails with incorrect public key', async () => {
     const { sk } = await generateVRFKeyPair();
-    const { pk: wrongPk } = await generateVRFKeyPair(); // Generate a different compressed pk hex
+    const { pk: wrongPk } = await generateVRFKeyPair();
     const inputHex = getRandomB256();
 
     const { proofHex } = await proveVRF(sk, inputHex);
+    const chunkedProof = chunkProof(proofHex); // Chunk the valid proof
 
     // Verify with the wrong public key hex
-    const isValid = await verifyVRF(wrongPk, inputHex, proofHex);
+    const isValid = verifyVRF(wrongPk, inputHex, chunkedProof); // Pass chunked proof
 
     expect(isValid).toBe(false);
   });
@@ -180,8 +219,9 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
     // Tamper with the gamma part (first 33 bytes)
     proofBytes[5] = (proofBytes[5] + 1) % 256; // Flip a byte
     const tamperedProofHex = bytesToHex(proofBytes);
+    const tamperedChunkedProof = chunkProof(tamperedProofHex); // Chunk the tampered proof
 
-    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    const isValid = verifyVRF(pk, inputHex, tamperedChunkedProof); // Pass tampered chunked proof
     expect(isValid).toBe(false);
   });
 
@@ -195,8 +235,9 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
     // Tamper with the c part (bytes 33-64)
     proofBytes[40] = (proofBytes[40] + 1) % 256; // Flip a byte
     const tamperedProofHex = bytesToHex(proofBytes);
+    const tamperedChunkedProof = chunkProof(tamperedProofHex); // Chunk the tampered proof
 
-    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    const isValid = verifyVRF(pk, inputHex, tamperedChunkedProof); // Pass tampered chunked proof
     expect(isValid).toBe(false);
   });
 
@@ -210,18 +251,26 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
     // Tamper with the s part (bytes 65-96)
     proofBytes[70] = (proofBytes[70] + 1) % 256; // Flip a byte
     const tamperedProofHex = bytesToHex(proofBytes);
+    const tamperedChunkedProof = chunkProof(tamperedProofHex); // Chunk the tampered proof
 
-    const isValid = await verifyVRF(pk, inputHex, tamperedProofHex);
+    const isValid = verifyVRF(pk, inputHex, tamperedChunkedProof); // Pass tampered chunked proof
     expect(isValid).toBe(false);
   });
 
   test('verifyVRF: fails with incorrect proof length', async () => {
     const { pk } = await generateVRFKeyPair();
     const inputHex = getRandomB256();
-    const shortProofHex = '0xabcdef1234';
+    // Create a chunked proof object with intentionally wrong b256 data
+    const badChunkedProof: ChunkedProof = {
+        p1: '0x1122', // Invalid length
+        p2: '0x' + 'aa'.repeat(32),
+        p3: '0x' + 'bb'.repeat(32),
+        p4: 100
+    };
 
-    const isValid = await verifyVRF(pk, inputHex, shortProofHex);
-    expect(isValid).toBe(false); // Should fail due to length check
+    const isValid = verifyVRF(pk, inputHex, badChunkedProof); // Pass bad chunked proof
+    // Expect verifyVRF to return false due to internal error handling
+    expect(isValid).toBe(false);
   });
 
   test('vrfProofToHash: returns correct B256 format', async () => {
@@ -269,8 +318,9 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
   });
 
   test('vrfProofToHash: fails with invalid proof hex (length)', async () => {
-    const invalidProofHex = '0xinvalidproofhex';
-    await expect(vrfProofToHash(invalidProofHex)).rejects.toThrow(/Invalid hex string/);
+    const invalidProofHex = '0x12345'; // Example invalid length hex (odd number)
+    // Expect hexToBytes to throw inside vrfProofToHash
+    expect(() => vrfProofToHash(invalidProofHex)).toThrow(/Invalid hex string length/);
   });
 
   test('vrfProofToHash: fails with proof containing invalid gamma hex', async () => {
@@ -282,8 +332,9 @@ describe('ECVRF Library (@simplevrf/ecvrf) - Rewritten', () => {
        const proofBytes = hexToBytes(proofHex);
        proofBytes[0] = 0x01; // Invalid prefix for compressed point
        const badProofHex = bytesToHex(proofBytes);
-
-       await expect(vrfProofToHash(badProofHex)).rejects.toThrow(/Invalid Gamma component/);
+       
+       // Expect proofToHash -> bytesToPoint to throw specific error
+       expect(() => vrfProofToHash(badProofHex)).toThrow(/Cannot hash proof: Invalid Gamma component.*Failed to convert bytes to point/);
   });
 
 }); 

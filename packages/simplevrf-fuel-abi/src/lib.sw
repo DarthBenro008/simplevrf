@@ -1,10 +1,18 @@
 library;
 
+pub struct ChunkedProof {
+    pub p1: b256,
+    pub p2: b256,
+    pub p3: b256,
+    pub p4: u8,
+    pub proof: b256,
+}
+
 pub struct Request {
     pub num: u64,
     pub status: u64, // 0 = pending, 1 = executed, 2 = failed
     pub seed: b256,
-    pub proof: b256,
+    pub proof: ChunkedProof,
     pub callback_contract: Identity,
 }
 
@@ -43,5 +51,5 @@ abi SimpleVrf {
     fn request(seed: b256) -> u64;
 
     #[storage(read, write)]
-    fn submit_proof(seed: b256, proof: b256) -> bool;
+    fn submit_proof(seed: b256, proof: ChunkedProof) -> bool;
 }

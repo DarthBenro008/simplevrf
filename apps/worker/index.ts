@@ -1,4 +1,12 @@
-import { generateVRFKeyPair, proveVRF, verifyVRF, vrfProofToHash } from "@simplevrf/ecvrf";
+import {
+  generateVRFKeyPair,
+  proveVRF,
+  verifyVRF,
+  vrfProofToHash,
+  hexToBytes,
+  bytesToHex,
+  type ChunkedProof
+} from "@simplevrf/ecvrf";
 import { getRandomB256, arrayify, Wallet } from "fuels";
 import { ProjectivePoint } from '@noble/secp256k1';
 
@@ -23,17 +31,29 @@ async function main() {
 
     // --- VRF Proof Generation ---
     console.log("\nGenerating proof using proveVRF...");
-    // Pass hex private key and hex input alpha
     const { proofHex, gammaHex } = await proveVRF(privateKeyHex, inputHex);
     console.log("VRF proof (hex string):", proofHex);
     console.log("VRF gamma (hex string - compressed point):", gammaHex);
-    console.log(` -> Proof Length: ${proofHex.length} chars`); // Should be 196
-    console.log(` -> Gamma Length: ${gammaHex.length} chars`); // Should be 68
+
+    // --- Convert proofHex to ChunkedProof format ---
+    const proofBytes = hexToBytes(proofHex); // Use helper from ecvrf package
+    if (proofBytes.length !== 97) {
+      throw new Error(`Generated proofBytes has unexpected length: ${proofBytes.length}`);
+    }
+
+    const chunkedProof: ChunkedProof = {
+        p1: bytesToHex(proofBytes.slice(0, 32)),   // b256 hex
+        p2: bytesToHex(proofBytes.slice(32, 64)),  // b256 hex
+        p3: bytesToHex(proofBytes.slice(64, 96)),  // b256 hex
+        p4: proofBytes[96] as number                         // u8 number
+    };
+    console.log("\nProof converted to ChunkedProof format:");
+    console.log(chunkedProof);
 
     // --- VRF Proof Verification ---
-    console.log("\nVerifying proof using verifyVRF...");
-    // Pass hex public key, hex input alpha, and hex proof
-    const isValid = await verifyVRF(publicKeyHex, inputHex, proofHex);
+    console.log("\nVerifying proof using verifyVRF (with ChunkedProof)...");
+    // Pass hex public key, hex input alpha, and the chunked proof object
+    const isValid = await verifyVRF(publicKeyHex, inputHex, chunkedProof);
     console.log("Proof verification result:", isValid);
 
     if (!isValid) {
@@ -41,16 +61,14 @@ async function main() {
       console.error("Inputs provided to verifyVRF:");
       console.error("  Public Key (Compressed hex):", publicKeyHex);
       console.error("  Input (Hex):", inputHex);
-      console.error("  Proof (hex):", proofHex);
-      // NOTE: Internal error likely occurred within verifyVRF (e.g., point parsing)
-      // Check the console logs for specific errors from the ecvrf package.
+      console.error("  Chunked Proof:", chunkedProof);
       throw new Error("Proof verification failed. See logs for details.");
     }
 
     // --- VRF Hash Calculation --- 
     // Note: The B256 value is the HASH derived from the proof, not the proof itself.
     console.log("\nCalculating B256 hash from proof using vrfProofToHash...");
-    const hashHex = await vrfProofToHash(proofHex);
+    const hashHex = await vrfProofToHash(proofHex); // proofToHash still takes original proofHex
     console.log("VRF hash derived from proof (hex B256):", hashHex);
     console.log(` -> Hash Length: ${hashHex.length} chars`); // Should be 66
 

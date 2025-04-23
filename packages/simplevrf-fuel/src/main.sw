@@ -11,7 +11,8 @@ use std::constants::{ZERO_B256};
 use std::block::height;
 use std::logging::log;
 use std::call_frames::msg_asset_id;
-use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback, Request};
+
+use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback, Request, ChunkedProof};
 
 const ADMIN_ADDRESS: Address = Address::from(0x2a8d96911becbe05b2a9f5253c91865f0f4b365ed0e2abab17a35e9fc9c4ac76);
 
@@ -43,7 +44,7 @@ storage {
     authorities: StorageVec<Address> = StorageVec {},
     requests: StorageMap<b256, Request> = StorageMap {},
     request_num: StorageMap<u64, b256> = StorageMap {},
-    proofs: StorageMap<b256, StorageVec<b256>> = StorageMap {},
+    proofs: StorageMap<b256, StorageVec<ChunkedProof>> = StorageMap {},
 }
 
 
@@ -135,7 +136,13 @@ impl SimpleVrf for Contract {
             num: count,
             seed: seed,
             status: 0,
-            proof: ZERO_B256,
+            proof: ChunkedProof {
+                p1: ZERO_B256,
+                p2: ZERO_B256,
+                p3: ZERO_B256,
+                p4: 0,
+                proof: ZERO_B256,
+            },
             callback_contract: sender,
         };
         storage.requests.insert(seed, request);
@@ -145,7 +152,7 @@ impl SimpleVrf for Contract {
     }
 
     #[storage(read, write)]
-    fn submit_proof(seed: b256, proof: b256) -> bool {
+    fn submit_proof(seed: b256, proof: ChunkedProof) -> bool {
         let sender = msg_sender().unwrap();
         require(sender.is_address(), Error::ContractCallNotAllowed);
         let sender_addr = sender.as_address().unwrap();
@@ -178,8 +185,7 @@ impl SimpleVrf for Contract {
             // execute the callback
             let callback_contract_addr = request.callback_contract.bits();
             let callback_contract = abi(SimpleVrfCallback, callback_contract_addr);
-            let _ = callback_contract.simple_callback(seed, winner_proof);
-          
+            let _ = callback_contract.simple_callback(seed, winner_proof.proof);
         }
         true
     }

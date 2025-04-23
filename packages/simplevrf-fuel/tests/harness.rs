@@ -72,6 +72,13 @@ async fn simple_vrf_e2e_test() {
     let hex_str = "0101010101010101010101010101010101010101010101010101010101010101";
     let proof = Bits256::from_hex_str(hex_str).unwrap();
 
+    let chunked_proof = ChunkedProof {
+        p_1: Bits256::zeroed(),
+        p_2: Bits256::zeroed(),
+        p_3: Bits256::zeroed(),
+        p_4: 0,
+        proof: proof,
+    };
     // generate request to the vrf contract
     sample.methods().request(seed)
     .call_params(
@@ -88,7 +95,7 @@ async fn simple_vrf_e2e_test() {
     vrf.methods().get_request(seed).call().await.unwrap();
 
     // submit proof to the vrf contract
-    vrf.methods().submit_proof(seed, proof).with_contract_ids(&[sample.contract_id().clone()]).call().await.unwrap();
+    vrf.methods().submit_proof(seed, chunked_proof).with_contract_ids(&[sample.contract_id().clone()]).call().await.unwrap();
 
     let checker = sample.methods().get_latest_proof().call().await.unwrap();
     assert_eq!(checker.value, proof);
