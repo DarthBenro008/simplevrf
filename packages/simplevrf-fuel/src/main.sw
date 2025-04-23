@@ -14,7 +14,7 @@ use std::call_frames::msg_asset_id;
 
 use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback, Request, ChunkedProof};
 
-const ADMIN_ADDRESS: Address = Address::from(0x2a8d96911becbe05b2a9f5253c91865f0f4b365ed0e2abab17a35e9fc9c4ac76);
+const ADMIN_ADDRESS: Address = Address::from(0x790e198405236466f2760316697eaE3320982b1Af8BA2A2F7bd088a632fD66DF);
 
 pub enum Error {
     NotAuthorized: (),
@@ -53,6 +53,22 @@ storage {
 impl SimpleVrf for Contract {
 
     #[storage(read)]
+    fn get_unfinalized_requests() -> Vec<Request> {
+        let mut result = Vec::new();
+        let len = storage.request_count.try_read().unwrap();
+        let mut i = 0;
+        while i < len {
+            let seed = storage.request_num.get(i).try_read().unwrap();
+            let request = storage.requests.get(seed).try_read().unwrap();
+            if request.status == 0 {
+                result.push(request);
+            }
+            i = i + 1;
+        }
+        result
+    }
+
+    #[storage(read)]
     fn get_request(seed: b256) -> Request {
         storage.requests.get(seed).try_read().unwrap()
     }
@@ -70,7 +86,7 @@ impl SimpleVrf for Contract {
 
     #[storage(read, write)]
     fn set_fee(asset: AssetId, fee: u64) {
-        // require(is_authority(), Error::NotAuthorized);
+        require(is_authority(), Error::NotAuthorized);
         storage.fee_map.insert(asset, fee);
     }
 
@@ -93,7 +109,7 @@ impl SimpleVrf for Contract {
 
     #[storage(read, write)]
     fn add_authority(authority: Address) {
-        // require(is_authority(), Error::NotAuthorized);
+        require(is_authority(), Error::NotAuthorized);
         let len = storage.authorities.len();
         let mut found = false;
         let mut i = 0;
@@ -146,9 +162,9 @@ impl SimpleVrf for Contract {
             callback_contract: sender,
         };
         storage.requests.insert(seed, request);
+        storage.request_num.insert(count, seed);
         storage.request_count.write(count + 1);
-        storage.request_num.insert(count + 1, seed);
-        count + 1
+        count
     }
 
     #[storage(read, write)]

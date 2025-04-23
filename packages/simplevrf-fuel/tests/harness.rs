@@ -92,6 +92,9 @@ async fn simple_vrf_e2e_test() {
 
     assert_eq!(counter.value, 1);
 
+    let unfullfilled_requests = vrf.methods().get_unfinalized_requests().call().await.unwrap();
+    assert_eq!(unfullfilled_requests.value.len(), 1);
+
     vrf.methods().get_request(seed).call().await.unwrap();
 
     // submit proof to the vrf contract

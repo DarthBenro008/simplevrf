@@ -23,6 +23,9 @@ abi SimpleVrfCallback {
 
 abi SimpleVrf {
     #[storage(read)]
+    fn get_unfinalized_requests() -> Vec<Request>;
+
+    #[storage(read)]
     fn get_fee(asset: AssetId) -> u64;
 
     #[storage(read, write)]
