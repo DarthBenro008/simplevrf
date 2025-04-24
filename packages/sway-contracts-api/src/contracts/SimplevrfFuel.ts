@@ -24,8 +24,8 @@ import type {
 
 import type { Enum, Vec } from "./common";
 
-export enum ErrorInput { NotAuthorized = 'NotAuthorized', InsufficientFee = 'InsufficientFee', ProofNotFound = 'ProofNotFound', RequestNotFound = 'RequestNotFound', ContractCallNotAllowed = 'ContractCallNotAllowed' };
-export enum ErrorOutput { NotAuthorized = 'NotAuthorized', InsufficientFee = 'InsufficientFee', ProofNotFound = 'ProofNotFound', RequestNotFound = 'RequestNotFound', ContractCallNotAllowed = 'ContractCallNotAllowed' };
+export enum ErrorInput { NotAuthorized = 'NotAuthorized', InsufficientFee = 'InsufficientFee', ProofNotFound = 'ProofNotFound', RequestNotFound = 'RequestNotFound', ContractCallNotAllowed = 'ContractCallNotAllowed', InsufficientBalance = 'InsufficientBalance' };
+export enum ErrorOutput { NotAuthorized = 'NotAuthorized', InsufficientFee = 'InsufficientFee', ProofNotFound = 'ProofNotFound', RequestNotFound = 'RequestNotFound', ContractCallNotAllowed = 'ContractCallNotAllowed', InsufficientBalance = 'InsufficientBalance' };
 export type IdentityInput = Enum<{ Address: AddressInput, ContractId: ContractIdInput }>;
 export type IdentityOutput = Enum<{ Address: AddressOutput, ContractId: ContractIdOutput }>;
 
@@ -37,8 +37,8 @@ export type ChunkedProofInput = { p1: string, p2: string, p3: string, p4: BigNum
 export type ChunkedProofOutput = { p1: string, p2: string, p3: string, p4: number, proof: string };
 export type ContractIdInput = { bits: string };
 export type ContractIdOutput = ContractIdInput;
-export type RequestInput = { num: BigNumberish, status: BigNumberish, seed: string, proof: ChunkedProofInput, callback_contract: IdentityInput };
-export type RequestOutput = { num: BN, status: BN, seed: string, proof: ChunkedProofOutput, callback_contract: IdentityOutput };
+export type RequestInput = { num: BigNumberish, status: BigNumberish, seed: string, proof: ChunkedProofInput, fullfilled_by: AddressInput, callback_contract: IdentityInput };
+export type RequestOutput = { num: BN, status: BN, seed: string, proof: ChunkedProofOutput, fullfilled_by: AddressOutput, callback_contract: IdentityOutput };
 
 const abi = {
   "programType": "contract",
@@ -127,6 +127,10 @@ const abi = {
         {
           "name": "ContractCallNotAllowed",
           "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "InsufficientBalance",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
         }
       ]
     },
@@ -197,6 +201,10 @@ const abi = {
         {
           "name": "proof",
           "typeId": 4
+        },
+        {
+          "name": "fullfilled_by",
+          "typeId": 6
         },
         {
           "name": "callback_contract",
@@ -479,6 +487,21 @@ const abi = {
           ]
         }
       ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "asset",
+          "concreteTypeId": "c0710b6731b1dd59799cf6bef33eee3b3b04a2e40e80a0724090215bbf2ca974"
+        },
+        {
+          "name": "amount",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ],
+      "name": "withdraw",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": null
     }
   ],
   "loggedTypes": [
@@ -515,6 +538,7 @@ export class SimplevrfFuelInterface extends Interface {
     request: FunctionFragment;
     set_fee: FunctionFragment;
     submit_proof: FunctionFragment;
+    withdraw: FunctionFragment;
   };
 }
 
@@ -535,6 +559,7 @@ export class SimplevrfFuel extends __Contract {
     request: InvokeFunction<[seed: string], BN>;
     set_fee: InvokeFunction<[asset: AssetIdInput, fee: BigNumberish], void>;
     submit_proof: InvokeFunction<[seed: string, proof: ChunkedProofInput], boolean>;
+    withdraw: InvokeFunction<[asset: AssetIdInput, amount: BigNumberish], void>;
   };
 
   constructor(

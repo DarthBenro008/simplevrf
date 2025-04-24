@@ -1,0 +1,22 @@
+{
+  "name": "simplevrf-cli",
+  "version": "1.0.0",
+  "description": "CLI for interacting with SimpleVrf contract on Fuel",
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@simplevrf/sway-contracts-api": "workspace:*",
+    "commander": "^11.1.0",
+    "fuels": "^0.100.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

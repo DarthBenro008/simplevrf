@@ -10,6 +10,7 @@ use std::identity::Identity;
 use std::constants::{ZERO_B256};
 use std::block::height;
 use std::logging::log;
+use std::asset::transfer;
 use std::call_frames::msg_asset_id;
 
 use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback, Request, ChunkedProof};
@@ -22,6 +23,7 @@ pub enum Error {
     ProofNotFound: (),
     RequestNotFound: (),
     ContractCallNotAllowed: (),
+    InsufficientBalance: (),
 }
 
 // Helpers
@@ -44,13 +46,19 @@ storage {
     authorities: StorageVec<Address> = StorageVec {},
     requests: StorageMap<b256, Request> = StorageMap {},
     request_num: StorageMap<u64, b256> = StorageMap {},
-    proofs: StorageMap<b256, StorageVec<ChunkedProof>> = StorageMap {},
+    proofs: StorageMap<b256, StorageVec<(Address, ChunkedProof)>> = StorageMap {},
 }
 
 
 
 // Implementation
 impl SimpleVrf for Contract {
+
+    fn withdraw(asset: AssetId, amount: u64) {
+        require(is_authority(), Error::NotAuthorized);
+        require(this_balance(asset) >= amount, Error::InsufficientBalance);
+        let _ = transfer(Identity::Address(Address::from(ADMIN_ADDRESS)), asset, amount);
+    }
 
     #[storage(read)]
     fn get_unfinalized_requests() -> Vec<Request> {
@@ -160,6 +168,7 @@ impl SimpleVrf for Contract {
                 proof: ZERO_B256,
             },
             callback_contract: sender,
+            fullfilled_by: Address::zero(),
         };
         storage.requests.insert(seed, request);
         storage.request_num.insert(count, seed);
@@ -176,7 +185,7 @@ impl SimpleVrf for Contract {
         let len = storage.authorities.len();
         while i < len {
             if storage.authorities.get(i).unwrap().try_read().unwrap() == sender_addr {
-                storage.proofs.get(seed).push(proof);
+                storage.proofs.get(seed).push((sender_addr, proof));
                 break;
             }
             i = i + 1;
@@ -195,13 +204,14 @@ impl SimpleVrf for Contract {
                 num: request.num,
                 seed: request.seed,
                 status: 1,
-                proof: winner_proof,
+                proof: winner_proof.1,
+                fullfilled_by: winner_proof.0,
                 callback_contract: request.callback_contract,
             }); 
             // execute the callback
             let callback_contract_addr = request.callback_contract.bits();
             let callback_contract = abi(SimpleVrfCallback, callback_contract_addr);
-            let _ = callback_contract.simple_callback(seed, winner_proof.proof);
+            let _ = callback_contract.simple_callback(seed, winner_proof.1.proof);
         }
         true
     }

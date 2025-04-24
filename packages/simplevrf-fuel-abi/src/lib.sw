@@ -13,6 +13,7 @@ pub struct Request {
     pub status: u64, // 0 = pending, 1 = executed, 2 = failed
     pub seed: b256,
     pub proof: ChunkedProof,
+    pub fullfilled_by: Address,
     pub callback_contract: Identity,
 }
 
@@ -24,6 +25,8 @@ abi SimpleVrfCallback {
 abi SimpleVrf {
     #[storage(read)]
     fn get_unfinalized_requests() -> Vec<Request>;
+
+    fn withdraw(asset: AssetId, amount: u64);
 
     #[storage(read)]
     fn get_fee(asset: AssetId) -> u64;
