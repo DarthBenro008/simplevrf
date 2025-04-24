@@ -15,11 +15,39 @@ async function main() {
     throw new Error("SIMPLEVRF_CONTRACT_ID and WALLET_SECRET must be set");
   }
   const wallet = new WalletUnlocked(process.env.WALLET_SECRET!, provider);
-  const simpleVrfContract = new SimplevrfFuel(process.env.SIMPLEVRF_CONTRACT_ID!, wallet)
-  setInterval(async () => {
-    console.log("Checking for unfinalized requests...");
-    await fullfillRequest(simpleVrfContract, wallet)
-  }, 5000);
+  const simpleVrfContract = new SimplevrfFuel(process.env.SIMPLEVRF_CONTRACT_ID!, wallet);
+  
+  let isProcessing = false;
+  
+  async function processRequests() {
+    if (isProcessing) {
+      console.log("Previous batch still processing, skipping this interval");
+      return;
+    }
+    
+    try {
+      isProcessing = true;
+      console.log("Checking for unfinalized requests...");
+      await fullfillRequest(simpleVrfContract, wallet);
+    } catch (error) {
+      console.error("Error processing requests:", error);
+    } finally {
+      isProcessing = false;
+    }
+  }
+
+  // Start the first iteration immediately
+  processRequests();
+  
+  // Then set up the recurring check
+  function scheduleNext() {
+    setTimeout(async () => {
+      await processRequests();
+      scheduleNext();
+    }, 1000);
+  }
+  
+  scheduleNext();
 }
 
 async function fullfillRequest(contract: SimplevrfFuel, wallet: WalletUnlocked) {
