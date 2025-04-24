@@ -20,13 +20,13 @@ This library provides a robust implementation of the ECVRF (Verifiable Random Fu
 
 ```bash
 # Using npm
-npm install ecvrf
+npm install @simplevrf/ecvrf
 
 # Using yarn
-yarn add ecvrf
+yarn add @simplevrf/ecvrf
 
 # Using bun
-bun add ecvrf
+bun add @simplevrf/ecvrf
 ```
 
 ## Usage
@@ -140,8 +140,8 @@ Converts an ECVRF proof to a deterministic hash.
 
 ```bash
 # Clone the repository
-git clone https://your-repo/ecvrf.git
-cd ecvrf
+git clone https://github.com/darthbenro008/simplevrf.git
+cd packages/ecvrf
 
 # Install dependencies
 npm install
