@@ -255,9 +255,12 @@ export default function Home() {
               </div>
               <div className="flex flex-col gap-2 min-[400px]:flex-row">
                 <Link href="https://github.com/darthbenro008/simplevrf" target="_blank">
-                  <Button className="bg-[#00D671] text-[#0C0C0C] hover:bg-[#00B85F]">
-                    Get Started
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                  <Button className="bg-[#00D671] text-[#0C0C0C] hover:bg-[#00B85F] group relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(0,214,113,0.3)]">
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#00D671] via-[#00B85F] to-[#00D671] opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-[gradient_3s_linear_infinite]" />
+                    <span className="relative flex items-center">
+                      Get Started
+                      <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </span>
                   </Button>
                 </Link>
               </div>
