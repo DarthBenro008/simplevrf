@@ -1,5 +1,9 @@
+![banner](assets/banner.png)
+
 # SimpleVrf
 
+![https://app.fuel.network/contract/0x62f032d26b18de7f38ec8a159e0b31ac67e600367f53e34fe33701459d9765fb](https://img.shields.io/badge/mainnet-live-blue
+)
 ![https://app-testnet.fuel.network/contract/0xf9e5f1f1ca988599e415bcca3b77b582ae48f9e32069cce17fc2d9465fb7c6a1](https://img.shields.io/badge/testnet-live-green
 )
 
@@ -47,7 +51,7 @@ bun start
 
 | Network | Contract ID |
 |---------|-------------|
-| Mainnet | Coming Soon |
+| Mainnet | 0x62f032d26b18de7f38ec8a159e0b31ac67e600367f53e34fe33701459d9765fb |
 | Testnet | 0xf9e5f1f1ca988599e415bcca3b77b582ae48f9e32069cce17fc2d9465fb7c6a1 |
 
 ## 👀 Example
