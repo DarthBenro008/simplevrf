@@ -6,6 +6,7 @@ node_modules
 .pnp.js
 .todo.md
 experiments/
+.open-next/
 
 # Local env files
 .env

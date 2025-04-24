@@ -6,10 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@icons-pack/react-simple-icons": "^12.7.0",
+    "@opennextjs/cloudflare": "^1.0.0-beta.2",
     "@radix-ui/react-slot": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -31,6 +35,7 @@
     "eslint-config-next": "15.3.1",
     "tailwindcss": "^4.1.4",
     "tw-animate-css": "^1.2.8",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.13.0"
   }
 }
