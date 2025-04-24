@@ -1,84 +1,107 @@
-# Turborepo starter
+# SimpleVrf
 
-This Turborepo starter is maintained by the Turborepo core team.
+![https://app-testnet.fuel.network/contract/0xf9e5f1f1ca988599e415bcca3b77b582ae48f9e32069cce17fc2d9465fb7c6a1](https://img.shields.io/badge/testnet-live-green
+)
 
-## Using this example
 
-Run the following command:
+A simple and secure Verifiable Random Function (VRF) implementation for the Fuel Network.
 
-```sh
-npx create-turbo@latest
+## 🦅 Overview
+
+SimpleVrf is a decentralized random number generation system built on the Fuel Network, utilizing ECVRF (Elliptic Curve Verifiable Random Function) and Byzantine fault-tolerant quorum consensus.
+
+## 🤔 What is SimpleVrf?
+
+SimpleVrf is a decentralized random number generation system that combines ECVRF (Elliptic Curve Verifiable Random Function) with Byzantine fault-tolerant quorum consensus. It provides cryptographically secure, verifiable random numbers that can be used in smart contracts and decentralized applications. The system ensures that random numbers are:
+
+- Unpredictable
+- Verifiable
+- Decentralized
+- Byzantine fault-tolerant
+
+## ⚡️ Quick Start
+
+1. Install dependencies:
+```bash
+bun install
 ```
 
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm build
+2. Build the project:
+```bash
+bun build
 ```
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm dev
+3. Run the worker:
+```bash
+cd apps/worker
+bun dev
 ```
 
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
+4. Use the CLI to interact with SimpleVrf:
+```bash
+cd apps/cli
+bun start
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+## 🆔 Contract IDs
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+| Network | Contract ID |
+|---------|-------------|
+| Mainnet | Coming Soon |
+| Testnet | 0xf9e5f1f1ca988599e415bcca3b77b582ae48f9e32069cce17fc2d9465fb7c6a1 |
 
+## 👀 Example
+
+Here's a simple example of how to use SimpleVrf in your Fuel contract:
+
+```rust
+use simplevrf_fuel_abi::{SimpleVrf, SimpleVrfCallback};
+
+impl SimpleVrfCallback for Contract {
+    #[storage(read, write)]
+    fn simple_callback(seed: b256, proof: b256) {
+        storage.latest_proof.write(proof);
+    }
+}
+
+// Request a random number
+fn request_random_number(seed: b256) -> u64 {
+    let simple_vrf = abi(SimpleVrf, vrf_id);
+    let fee = simple_vrf.get_fee(AssetId::base());
+    let request_id = simple_vrf.request{
+        asset_id: AssetId::base().bits(),
+        coins: fee, 
+    }(seed);
+    request_id
+}
 ```
-npx turbo link
-```
 
-## Useful Links
+The callback will be triggered when the random number is generated, providing both the seed and the proof.
 
-Learn more about the power of Turborepo:
+## 🧱 Components
 
-- [Tasks](https://turbo.build/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/docs/reference/command-line-reference)
+SimpleVrf consists of several key components:
+
+1. **ECVRF Package**: Core cryptographic implementation of the Elliptic Curve VRF
+2. **SimpleVrf Contract**: Main smart contract implementation on Fuel Network
+3. **SimpleVrf ABI**: Contract interface definitions
+4. **Worker**: Service that processes VRF requests and generates random numbers
+5. **CLI**: Command-line interface for interacting with SimpleVrf
+6. **SimpleVrf Example**: Example implementation showing how to use SimpleVrf
+
+## 🤝 Contribution Guidelines
+
+- Feel Free to Open a PR/Issue for any feature or bug(s).
+- Make sure you follow the [community guidelines](https://docs.github.com/en/github/site-policy/github-community-guidelines).
+- Feel free to open an issue to ask a question/discuss anything about simplevrf.
+- Have a feature request? Open an Issue!
+- Please ensure to run `bun test` before submitting your PRs!
+
+## 𐄷 License
+
+Copyright 2025 Hemanth Krishna
+
+Licensed under MIT License : https://opensource.org/licenses/MIT
+
+
+<p align="center">Made with ❤ , and some cans of Diet Coke 🧃</p>

@@ -1,6 +1,6 @@
 # ECVRF
 
-A production-grade TypeScript implementation of Elliptic Curve Verifiable Random Function (ECVRF) using secp256k1.
+A production-grade TypeScript implementation of Elliptic Curve Verifiable Random Function (ECVRF) using secp256k1, following RFC 9381 for suite ECVRF-SECP256k1-SHA256-TAI.
 
 ## About
 
@@ -8,7 +8,8 @@ This library provides a robust implementation of the ECVRF (Verifiable Random Fu
 
 ### Features
 
-- Standards-compliant ECVRF implementation
+- Standards-compliant ECVRF implementation following RFC 9381
+- Support for secp256k1 curve
 - Deterministic outputs for the same inputs
 - Robust error handling
 - Comprehensive test coverage
@@ -33,74 +34,91 @@ bun add ecvrf
 ### Basic Example
 
 ```typescript
-import { generateKeyPair, prove, verify, proofToHash } from 'ecvrf';
-import { utf8ToBytes, bytesToHex } from 'ecvrf/utils';
+import { 
+  generateVRFKeyPair, 
+  proveVRF, 
+  verifyVRF, 
+  vrfProofToHash,
+  hexToBytes,
+  bytesToHex,
+  utf8ToBytes 
+} from 'ecvrf';
 
-// Generate a key pair (or use your existing keys)
-const { sk, pk } = await generateKeyPair();
-console.log('Private key:', bytesToHex(sk));
+// Generate a key pair
+const { sk, pk } = generateVRFKeyPair();
+console.log('Private key:', sk);
 console.log('Public key:', pk);
 
 // Create a message (can be any data)
-const message = utf8ToBytes('My message to prove');
+const message = 'My message to prove';
+const messageBytes = utf8ToBytes(message);
+const messageHex = bytesToHex(messageBytes);
 
 // Generate a proof
-const { proof, gamma } = await prove(sk, message);
-console.log('Proof:', proof);
+const { proofHex, gammaHex } = proveVRF(sk, messageHex);
+console.log('Proof:', proofHex);
 
 // Verify the proof
-const isValid = await verify(pk, message, proof);
+const isValid = verifyVRF(pk, messageHex, {
+  p1: proofHex.slice(0, 66),  // First 32 bytes
+  p2: proofHex.slice(66, 130), // Next 32 bytes
+  p3: proofHex.slice(130, 194), // Next 32 bytes
+  p4: parseInt(proofHex.slice(194), 16) // Last byte
+});
 console.log('Verification result:', isValid); // Should be true
 
 // Convert the proof to a deterministic hash
-const hash = await proofToHash(gamma);
-console.log('VRF output hash:', bytesToHex(hash));
+const hash = vrfProofToHash(proofHex);
+console.log('VRF output hash:', hash);
 ```
 
 ### API Reference
 
-#### `generateKeyPair(): Promise<{ sk: Uint8Array; pk: string }>`
+#### `generateVRFKeyPair(): { sk: string; pk: string }`
 
 Generates a new ECVRF key pair.
 
-- Returns: A promise resolving to an object containing:
-  - `sk`: Private key as a `Uint8Array`
-  - `pk`: Public key as a hex string (compressed format)
+- Returns: An object containing:
+  - `sk`: Private key as a hex string
+  - `pk`: Public key as a hex string
 
-#### `prove(sk: Uint8Array, alpha: Uint8Array): Promise<{ proof: string; gamma: string }>`
+#### `proveVRF(privateKeyHex: string, alphaHex: string): { proofHex: string; gammaHex: string }`
 
 Generates an ECVRF proof for a message using a private key.
 
 - Parameters:
-  - `sk`: Private key as a `Uint8Array`
-  - `alpha`: Message as a `Uint8Array`
-- Returns: A promise resolving to an object containing:
-  - `proof`: The ECVRF proof as a hex string
-  - `gamma`: The gamma point of the proof as a hex string
+  - `privateKeyHex`: Private key as a hex string
+  - `alphaHex`: Message as a hex string
+- Returns: An object containing:
+  - `proofHex`: The ECVRF proof as a hex string
+  - `gammaHex`: The gamma point of the proof as a hex string
 
-#### `verify(pkHex: string, alpha: Uint8Array, proof: string): Promise<boolean>`
+#### `verifyVRF(publicKeyHex: string, alphaHex: string, chunkedProof: ChunkedProof): boolean`
 
 Verifies an ECVRF proof.
 
 - Parameters:
-  - `pkHex`: Public key as a hex string
-  - `alpha`: Original message as a `Uint8Array`
-  - `proof`: The ECVRF proof to verify as a hex string
-- Returns: A promise resolving to a boolean indicating if the proof is valid
+  - `publicKeyHex`: Public key as a hex string
+  - `alphaHex`: Original message as a hex string
+  - `chunkedProof`: The ECVRF proof split into chunks
+- Returns: A boolean indicating if the proof is valid
 
-#### `proofToHash(gammaHex: string): Promise<Uint8Array>`
+#### `vrfProofToHash(proofHex: string): string`
 
-Converts the gamma point of an ECVRF proof to a deterministic hash.
+Converts an ECVRF proof to a deterministic hash.
 
 - Parameters:
-  - `gammaHex`: The gamma point as a hex string
-- Returns: A promise resolving to a 32-byte `Uint8Array` containing the hash
+  - `proofHex`: The ECVRF proof as a hex string
+- Returns: A hex string containing the hash
 
 #### Utility Functions
 
-- `utf8ToBytes(str: string): Uint8Array`: Converts a UTF-8 string to bytes
-- `bytesToHex(bytes: Uint8Array): string`: Converts bytes to a hex string
 - `hexToBytes(hex: string): Uint8Array`: Converts a hex string to bytes
+- `bytesToHex(bytes: Uint8Array): string`: Converts bytes to a hex string
+- `utf8ToBytes(str: string): Uint8Array`: Converts a UTF-8 string to bytes
+- `concatHex(...hexes: string[]): string`: Concatenates hex strings
+- `padHex(hex: string, length: number): string`: Pads a hex string to a specified length
+- `concatBytes(...arrays: Uint8Array[]): Uint8Array`: Concatenates byte arrays
 
 ## Use Cases
 
@@ -162,4 +180,5 @@ This library has been designed for production use, but as with any cryptographic
 
 ## License
 
-MIT 
+Copyright 2025 Hemanth Krishna
+Licensed under MIT License : https://opensource.org/licenses/MIT
