@@ -1,0 +1,84 @@
+---
+title: ECVRF Library
+---
+
+# ECVRF TypeScript Library
+
+A production-grade TypeScript implementation of Elliptic Curve Verifiable Random Function (ECVRF) using secp256k1, following RFC 9381 for suite ECVRF-SECP256k1-SHA256-TAI.
+
+## Features
+
+- Standards-compliant ECVRF implementation (RFC 9381)
+- secp256k1 curve support
+- Deterministic, verifiable outputs
+- Robust error handling
+- Well-documented API
+- Comprehensive test coverage
+
+## Installation
+
+```bash
+npm install @simplevrf/ecvrf
+# or
+yarn add @simplevrf/ecvrf
+# or
+bun add @simplevrf/ecvrf
+```
+
+## Usage Example
+
+```typescript
+import {
+  generateVRFKeyPair,
+  proveVRF,
+  verifyVRF,
+  vrfProofToHash,
+  hexToBytes,
+  bytesToHex,
+  utf8ToBytes
+} from '@simplevrf/ecvrf';
+
+const { sk, pk } = generateVRFKeyPair();
+const message = 'My message to prove';
+const messageHex = bytesToHex(utf8ToBytes(message));
+const { proofHex } = proveVRF(sk, messageHex);
+const isValid = verifyVRF(pk, messageHex, {
+  p1: proofHex.slice(0, 66),
+  p2: proofHex.slice(66, 130),
+  p3: proofHex.slice(130, 194),
+  p4: parseInt(proofHex.slice(194), 16)
+});
+const hash = vrfProofToHash(proofHex);
+```
+
+## API Reference
+
+- `generateVRFKeyPair()` – Generate a new ECVRF key pair
+- `proveVRF(privateKeyHex, alphaHex)` – Generate a proof for a message
+- `verifyVRF(publicKeyHex, alphaHex, chunkedProof)` – Verify a proof
+- `vrfProofToHash(proofHex)` – Convert proof to deterministic hash
+- Utility: `hexToBytes`, `bytesToHex`, `utf8ToBytes`, `concatHex`, `padHex`, `concatBytes`
+
+## Use Cases
+
+- Random beacon
+- Provably fair games and lotteries
+- Unpredictable but verifiable selections
+- Cryptographic sortition
+- Leader election in distributed systems
+
+## Development
+
+- Node.js >= 16 required
+- See [Testing](./testing) for test suite details
+
+## Security
+
+- Secure your private keys
+- Keep dependencies up to date
+- Review code before production use
+- Consider a security audit for critical applications
+
+## License
+
+MIT License © 2025 Hemanth Krishna

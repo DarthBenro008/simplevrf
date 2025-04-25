@@ -1,0 +1,61 @@
+---
+title: ECVRF Testing
+---
+
+# ECVRF Test Suite
+
+This page documents the test suite for the ECVRF (Elliptic Curve Verifiable Random Function) implementation used in SimpleVrf.
+
+## Running Tests
+
+To run the tests, use the following command from the `packages/ecvrf` directory:
+
+```bash
+npm test
+```
+
+To run tests in watch mode:
+
+```bash
+npm run test:watch
+```
+
+## Test Structure
+
+The test suite covers:
+
+1. **Key Pair Generation**: Ensures key pairs are generated with the correct format.
+2. **API Structure**: Verifies all required functions are exported with correct signatures.
+3. **Function Return Structure**: Checks that functions return values with the expected structure.
+
+## Current Implementation Status
+
+- Some curve operations may fail with point validation errors (e.g., "Point invalid: not on curve").
+- Gamma value formatting may cause issues.
+- Tests are designed to gracefully handle these issues and still verify API structure.
+
+## Debugging Tips
+
+- Check point formatting in curve operations.
+- Ensure hex encoding/decoding is consistent.
+- Review hash-to-curve implementation details.
+- Confirm signature format expectations in the verify function.
+
+## Test Vectors
+
+Test vectors are generated dynamically and check:
+
+- Verification succeeds with correct proofs, public keys, and messages.
+- Verification fails with wrong messages or public keys.
+- Proof-to-hash conversion is deterministic.
+
+## Sample Output
+
+The final test logs a complete example with:
+- Input message
+- Public key
+- Proof
+- Gamma value (elliptic curve point)
+- Output hash
+
+This output can be used as a reference for compatible implementations.

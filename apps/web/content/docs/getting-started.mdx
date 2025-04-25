@@ -1,0 +1,67 @@
+---
+title: Getting Started
+---
+
+This guide will help you set up and use SimpleVrf.
+
+## Prerequisites
+
+- Node.js (LTS recommended)
+- Bun package manager
+- Access to a Fuel network node (testnet or mainnet)
+- A funded wallet with private key
+
+## Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/darthbenro008/simplevrf.git
+cd simplevrf
+bun install
+```
+
+## Quick Start
+
+### 1. Build the project
+
+```bash
+bun build
+```
+
+### 2. Run the Worker
+
+```bash
+cd apps/worker
+bun run start
+```
+
+### 3. Use the CLI
+
+```bash
+cd apps/cli
+bun start
+```
+
+### 4. Start the Web App (optional)
+
+```bash
+cd apps/web
+bun dev
+```
+
+## Environment Variables
+
+For the worker, set these variables:
+
+```bash
+PROVIDER_URL="https://testnet.fuel.network/v1/graphql"
+SIMPLEVRF_CONTRACT_ID="0x..."
+WALLET_SECRET="0x..."
+```
+
+## Next Steps
+
+- [Architecture](./architecture)
+- [CLI Usage](./offchain-tools/cli)
+- [Smart Contracts](./smart-contracts)

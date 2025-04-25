@@ -33,6 +33,12 @@ export default function Home() {
               >
                 Components
               </Link>
+              <Link
+                href="/docs"
+                className="flex items-center text-sm font-medium text-gray-400 transition-colors hover:text-[#00D671]"
+              >
+                Documentation
+              </Link>
             </nav>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
@@ -74,7 +80,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-6 min-[400px]:flex-row">
-                  <Link href="https://github.com/darthbenro008/simplevrf" target="_blank">
+                  <Link href="/docs" target="_blank">
                     <Button className="bg-[#00D671] text-[#0C0C0C] hover:bg-[#00B85F] group relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(0,214,113,0.3)]">
                       <div className="absolute inset-0 bg-gradient-to-r from-[#00D671] via-[#00B85F] to-[#00D671] opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-[gradient_3s_linear_infinite]" />
                       <span className="relative flex items-center">
@@ -254,11 +260,11 @@ export default function Home() {
                 </p>
               </div>
               <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                <Link href="https://github.com/darthbenro008/simplevrf" target="_blank">
+                <Link href="/docs" target="_blank">
                   <Button className="bg-[#00D671] text-[#0C0C0C] hover:bg-[#00B85F] group relative overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(0,214,113,0.3)]">
                     <div className="absolute inset-0 bg-gradient-to-r from-[#00D671] via-[#00B85F] to-[#00D671] opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-[gradient_3s_linear_infinite]" />
                     <span className="relative flex items-center">
-                      Get Started
+                      Get Started, read the docs
                       <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </Button>
@@ -278,7 +284,7 @@ export default function Home() {
             <Link href="https://github.com/darthbenro008/simplevrf" className="text-sm text-gray-400 hover:text-[#00D671]">
               GitHub
             </Link>
-            <Link href="https://docs.simplevrf.xyz" className="text-sm text-gray-400 hover:text-[#00D671]">
+            <Link href="/docs" className="text-sm text-gray-400 hover:text-[#00D671]">
               Documentation
             </Link>
             <Link href="https://t.me/+TS_P30bfQA05NTdl" className="text-sm text-gray-400 hover:text-[#00D671]">

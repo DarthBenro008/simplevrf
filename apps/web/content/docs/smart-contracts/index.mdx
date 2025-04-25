@@ -1,0 +1,26 @@
+---
+title: Smart Contracts
+---
+
+# Smart Contracts
+
+SimpleVrf's core logic is implemented as a Fuel smart contract. It manages randomness requests, authorities, fees, and proof verification.
+
+## Main Components
+
+- **SimpleVrf Contract**: Handles requests, proof submission, authority management, and callbacks
+- **ABI**: Interface for interacting with the contract from off-chain tools
+- **Example Contract**: Shows how to integrate SimpleVrf into your own Fuel contracts
+
+## Request Flow
+
+1. User or contract calls `request(seed)` on the SimpleVrf contract
+2. The request is stored and awaits fulfillment
+3. Worker submits a VRF proof via `submit_proof(seed, proof)`
+4. Contract verifies the proof and triggers the callback
+
+---
+
+- [Deployed Addresses](./smart-contracts/deployed-address)
+- [Contract Methods](./smart-contracts/simple-vrf)
+- [Example Integration](./examples)

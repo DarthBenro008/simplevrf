@@ -1,0 +1,44 @@
+---
+title: Architecture
+---
+
+SimpleVrf is composed of several modular components that interact to provide decentralized, verifiable randomness:
+
+## Components
+
+- **ECVRF Package**: TypeScript implementation of Elliptic Curve Verifiable Random Function (RFC 9381)
+- **SimpleVrf Smart Contract**: Fuel contract that manages requests, authorities, and proof verification
+- **Worker**: Off-chain service that monitors the contract, generates proofs, and submits them
+- **CLI**: Command-line interface for interacting with the contract
+- **Web App**: (Optional) Frontend for documentation and interaction
+
+## High-Level Flow
+
+1. A user or contract requests randomness from the SimpleVrf contract
+2. The request is stored on-chain
+3. The off-chain worker monitors for unfulfilled requests
+4. The worker generates a VRF proof and submits it to the contract
+5. The contract verifies the proof and triggers a callback with the random value
+
+## Diagram
+
+<Mermaid
+chart="
+graph TD;
+    User/Contract -->|request| SimpleVrf_Contract;
+    SimpleVrf_Contract -->|unfulfilled requests| Worker;
+    Worker -->|proof| SimpleVrf_Contract;
+    SimpleVrf_Contract -->|callback| User/Contract;
+"
+/>
+
+## Component Interactions
+
+- The CLI and web app interact with the contract for management and monitoring
+- The worker automates proof generation and submission
+- The ECVRF package is used by the worker for cryptographic operations
+
+---
+
+- [Smart Contracts](./smart-contracts)
+- [Offchain Tools](./offchain-tools)

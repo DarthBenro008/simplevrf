@@ -1,0 +1,103 @@
+---
+title: SimpleVrf Contract ABI
+---
+
+The SimpleVrf contract is a Fuel smart contract that provides an interface for generating and verifying random numbers using Verifiable Random Functions (VRF). It allows users to request randomness, submit proofs, and manage authorities and fees.
+
+Here is the ABI for the SimpleVrf contract:
+
+```rust
+library;
+
+pub struct ChunkedProof {
+    pub p1: b256,
+    pub p2: b256,
+    pub p3: b256,
+    pub p4: u8,
+    pub proof: b256,
+}
+
+pub struct Request {
+    pub num: u64,
+    pub status: u64, // 0 = pending, 1 = executed, 2 = failed
+    pub seed: b256,
+    pub proof: ChunkedProof,
+    pub fullfilled_by: Address,
+    pub callback_contract: Identity,
+}
+
+abi SimpleVrfCallback {
+    #[storage(read, write)]
+    fn simple_callback(seed: b256, proof: b256);
+}
+
+abi SimpleVrf {
+    #[storage(read)]
+    fn get_unfinalized_requests() -> Vec<Request>;
+
+    fn withdraw(asset: AssetId, amount: u64);
+
+    #[storage(read)]
+    fn get_fee(asset: AssetId) -> u64;
+
+    #[storage(read, write)]
+    fn set_fee(asset: AssetId, fee: u64);
+
+    #[storage(read)]
+    fn get_request_count() -> u64;
+
+    #[storage(read)]
+    fn get_request(seed: b256) -> Request;
+
+    #[storage(read)]
+    fn get_request_by_num(num: u64) -> Request;
+
+    #[storage(read)]
+    fn get_authorities() -> Vec<Address>;
+
+    #[storage(read, write)]
+    fn add_authority(authority: Address);
+
+    #[storage(read, write)]
+    fn remove_authority(authority: Address);
+
+    #[payable]
+    #[storage(read, write)]
+    fn request(seed: b256) -> u64;
+
+    #[storage(read, write)]
+    fn submit_proof(seed: b256, proof: ChunkedProof) -> bool;
+}
+```
+
+The SimpleVrf Fuel contract exposes the following key methods:
+
+## Request Management
+
+- `request(seed)` – Create a new randomness request
+- `get_request(seed)` – Get details of a request
+- `get_request_count()` – Get the total number of requests
+- `get_unfinalized_requests()` – List all pending requests
+
+## Proof Submission
+
+- `submit_proof(seed, proof)` – Submit a VRF proof for a request
+
+## Authority Management
+
+- `add_authority(address)` – Add a new authority
+- `remove_authority(address)` – Remove an authority
+- `get_authorities()` – List all authorities
+
+## Fee Management
+
+- `get_fee(asset)` – Get the fee for a given asset
+- `set_fee(asset, amount)` – Set the fee for a given asset
+
+## Callback
+
+- `simplevrf_callback(seed, proof)` – Called by the contract when randomness is fulfilled
+
+---
+
+See [Example Integration](../examples) for usage in your own contracts.
