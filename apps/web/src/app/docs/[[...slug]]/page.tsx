@@ -8,10 +8,15 @@ import {
 import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/mdx-components';
 
-export default async function Page(props: {
-  params: { slug?: string[] };
-}) {
-  const page = source.getPage(props.params.slug);
+export default async function Page(
+  {
+    params,
+  }: {
+    params: Promise<{ slug: string[] }>
+  }
+) {
+  const { slug } = await params
+  const page = source.getPage(slug);
   if (!page) notFound();
 
   const MDX = page.data.body;
@@ -38,9 +43,10 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata(props: {
-  params: { slug?: string[] };
+  params: Promise<{ slug?: string[] }>
 }) {
-  const page = source.getPage(props.params.slug);
+  const { slug } = await props.params
+  const page = source.getPage(slug);
   if (!page) notFound();
 
   return {
