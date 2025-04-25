@@ -22,15 +22,7 @@ SimpleVrf is composed of several modular components that interact to provide dec
 
 ## Diagram
 
-<Mermaid
-chart="
-graph TD;
-    User/Contract -->|request| SimpleVrf_Contract;
-    SimpleVrf_Contract -->|unfulfilled requests| Worker;
-    Worker -->|proof| SimpleVrf_Contract;
-    SimpleVrf_Contract -->|callback| User/Contract;
-"
-/>
+![Diagram](/simplevrf_arch.png)
 
 ## Component Interactions
 
