@@ -15,6 +15,7 @@ pub struct Request {
     pub proof: ChunkedProof,
     pub fullfilled_by: Address,
     pub callback_contract: Identity,
+    pub should_callback: bool,
 }
 
 abi SimpleVrfCallback {
@@ -54,7 +55,7 @@ abi SimpleVrf {
 
     #[payable]
     #[storage(read, write)]
-    fn request(seed: b256) -> u64;
+    fn request(seed: b256, callback: Option<bool>) -> u64;
 
     #[storage(read, write)]
     fn submit_proof(seed: b256, proof: ChunkedProof) -> bool;
