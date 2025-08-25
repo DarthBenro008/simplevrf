@@ -25,13 +25,24 @@ fn request_random_number(seed: b256) -> u64 {
     let request_id = simple_vrf.request{
         asset_id: AssetId::base().bits(),
         coins: fee,
-    }(seed);
+    }(seed, None); // Default callback behavior (enabled)
+    request_id
+}
+
+fn request_random_number_no_callback(seed: b256) -> u64 {
+    let simple_vrf = abi(SimpleVrf, vrf_id);
+    let fee = simple_vrf.get_fee(AssetId::base());
+    let request_id = simple_vrf.request{
+        asset_id: AssetId::base().bits(),
+        coins: fee,
+    }(seed, Some(false)); // Disable callback - useful for scripts
     request_id
 }
 ```
 
 - Implement the callback to receive the proof.
-- Call `request_random_number(seed)` to request randomness.
+- Call `request_random_number(seed)` to request randomness with callback enabled (default).
+- Call `request_random_number_no_callback(seed)` to request randomness without callback (useful for scripts).
 
 ---
 
@@ -52,7 +63,7 @@ abi SampleVrfContract {
 
     #[payable]
     #[storage(read, write)]
-    fn request(seed: b256) -> u64;
+    fn request(seed: b256, callback: Option<bool>) -> u64;
 
     #[storage(read)]
     fn get_latest_proof() -> b256;
@@ -85,7 +96,7 @@ impl SampleVrfContract for Contract {
 
     #[payable]
     #[storage(read, write)]
-    fn request(seed: b256) -> u64 {
+    fn request(seed: b256, callback: Option<bool>) -> u64 {
         let vrf_id = storage.vrf_id.try_read().unwrap();
         storage.seed.write(seed);
         let simple_vrf = abi(SimpleVrf, vrf_id);
@@ -93,7 +104,7 @@ impl SampleVrfContract for Contract {
         let request_id = simple_vrf.request{
             asset_id: AssetId::base().bits(),
             coins: fee, 
-        }(seed);
+        }(seed, callback);
         request_id
     }
 
@@ -116,9 +127,13 @@ impl SampleVrfContract for Contract {
 
 ### How it works
 - The contract implements a callback interface (`SimpleVrfCallback`) to receive the random proof.
-- The `request(seed)` function stores the seed, fetches the fee, and calls the SimpleVrf contract to request randomness.
-- The callback (`simplevrf_callback` or `simple_callback`) is triggered by SimpleVrf when the proof is ready, storing the result in contract storage.
+- The `request(seed, callback)` function stores the seed, fetches the fee, and calls the SimpleVrf contract to request randomness with optional callback control.
+- The callback (`simplevrf_callback` or `simple_callback`) is triggered by SimpleVrf when the proof is ready (if callback is enabled), storing the result in contract storage.
 - Helper functions allow reading the latest proof and seed, and setting the VRF contract address.
+
+### Callback Parameter Options:
+- `None` or `Some(true)` – Enable callback (default behavior)
+- `Some(false)` – Disable callback, useful when calling from scripts or when you want to manually check for fulfillment
 
 ---
 

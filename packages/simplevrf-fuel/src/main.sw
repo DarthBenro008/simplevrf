@@ -149,7 +149,7 @@ impl SimpleVrf for Contract {
 
     #[payable]
     #[storage(read, write)]
-    fn request(seed: b256) -> u64 {
+    fn request(seed: b256, callback: Option<bool>) -> u64 {
         let asset_id = msg_asset_id();
         let amount = msg_amount();
         let fee = storage.fee_map.get(asset_id).try_read().unwrap();
@@ -169,6 +169,7 @@ impl SimpleVrf for Contract {
             },
             callback_contract: sender,
             fullfilled_by: Address::zero(),
+            should_callback: callback.unwrap_or(true),
         };
         storage.requests.insert(seed, request);
         storage.request_num.insert(count, seed);
@@ -207,11 +208,14 @@ impl SimpleVrf for Contract {
                 proof: winner_proof.1,
                 fullfilled_by: winner_proof.0,
                 callback_contract: request.callback_contract,
+                should_callback: request.should_callback,
             }); 
-            // execute the callback
-            let callback_contract_addr = request.callback_contract.bits();
-            let callback_contract = abi(SimpleVrfCallback, callback_contract_addr);
-            let _ = callback_contract.simple_callback(seed, winner_proof.1.proof);
+            if request.should_callback {
+                // execute the callback
+                let callback_contract_addr = request.callback_contract.bits();
+                let callback_contract = abi(SimpleVrfCallback, callback_contract_addr);
+                let _ = callback_contract.simple_callback(seed, winner_proof.1.proof);
+            }
         }
         true
     }

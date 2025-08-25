@@ -24,6 +24,7 @@ pub struct Request {
     pub proof: ChunkedProof,
     pub fullfilled_by: Address,
     pub callback_contract: Identity,
+    pub should_callback: bool,
 }
 
 abi SimpleVrfCallback {
@@ -63,7 +64,7 @@ abi SimpleVrf {
 
     #[payable]
     #[storage(read, write)]
-    fn request(seed: b256) -> u64;
+    fn request(seed: b256, callback: Option<bool>) -> u64;
 
     #[storage(read, write)]
     fn submit_proof(seed: b256, proof: ChunkedProof) -> bool;
@@ -74,7 +75,7 @@ The SimpleVrf Fuel contract exposes the following key methods:
 
 ## Request Management
 
-- `request(seed)` – Create a new randomness request
+- `request(seed, callback)` – Create a new randomness request with optional callback control (defaults to true)
 - `get_request(seed)` – Get details of a request
 - `get_request_count()` – Get the total number of requests
 - `get_unfinalized_requests()` – List all pending requests
@@ -97,6 +98,20 @@ The SimpleVrf Fuel contract exposes the following key methods:
 ## Callback
 
 - `simplevrf_callback(seed, proof)` – Called by the contract when randomness is fulfilled
+
+### Callback Control
+
+The `request` function now accepts an optional `callback` parameter:
+
+- `callback: Some(true)` (default) – Enable callback when request is fulfilled
+- `callback: Some(false)` – Disable callback, useful when calling from scripts
+- `callback: None` – Defaults to true (enabled)
+
+When `callback` is set to `false`, the contract will fulfill the request and store the proof, but will not attempt to call back to the requesting contract. This is particularly useful when:
+
+- Making requests from Fuel scripts (which cannot receive callbacks)
+- You want to manually check for fulfillment later
+- The requesting contract doesn't implement the callback interface
 
 ---
 
